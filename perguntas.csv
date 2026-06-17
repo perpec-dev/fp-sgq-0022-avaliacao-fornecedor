@@ -1,0 +1,82 @@
+bloco_id;categoria;grupo;bloco_nota;escopo;codigo;texto
+6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.1;Possui EPS/WPS qualificada conforme norma aplicável?
+6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.2;Possui soldadores qualificados e com certificados vigentes?
+6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.3;Possui controle de consumíveis de soldagem?
+6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.4;Possui rastreabilidade entre soldador, junta soldada e procedimento aplicado?
+6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.5;Realiza inspeções e registros rastreáveis das soldas executadas?
+
+7;Produção — Pintura e Hidrojateamento;ESCOPO;TECNICA;PINT;7.1;Possui procedimento documentado para preparação de superfície?
+7;Produção — Pintura e Hidrojateamento;ESCOPO;TECNICA;PINT;7.2;Existe área específica para pintura isenta de contaminantes?
+7;Produção — Pintura e Hidrojateamento;ESCOPO;TECNICA;PINT;7.3;Possui controle de temperatura e umidade durante a aplicação?
+7;Produção — Pintura e Hidrojateamento;ESCOPO;TECNICA;PINT;7.4;Possui inspetor qualificado para acompanhamento do processo?
+
+8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.1;Existem tornos e centros de usinagem compatíveis com a demanda?
+8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.2;Possui fluxo produtivo definido para fabricação, inspeção e expedição?
+8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.3;Possui plano de calibração vigente para instrumentos de medição?
+8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.4;Possui instrumentos adequados para inspeção dimensional e roscas API?
+8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.5;Mantém registros rastreáveis das inspeções realizadas?
+
+10;Matéria-prima Metálica;ESCOPO;TECNICA;MP;10.1;Emite certificado de qualidade EN 10204 3.1 ou equivalente para cada lote?
+10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.2;Possui rastreabilidade do material por número de corrida ou lote?
+10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.3;Realiza ou comprova análise química e ensaios mecânicos?
+10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.4;Atende requisitos de serviço ácido quando aplicável?
+10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.5;Possui controle de estoque com identificação por especificação?
+10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.6;Possui sistemática de preservação contra corrosão?
+
+11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.1;Possui fornos com registro contínuo de temperatura?
+11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.2;Os fornos possuem qualificação vigente?
+11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.3;Possui procedimentos documentados para cada tratamento térmico?
+11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.4;Emite relatório rastreável do tratamento térmico?
+11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.5;Realiza ensaios mecânicos pós-tratamento quando aplicável?
+
+13;Ferramentas de Corte, Pastilhas e Abrasivos;ESCOPO;TECNICA;FERR;13.1;Os produtos possuem identificação clara de fabricante e código?
+13;Ferramentas de Corte, Pastilhas e Abrasivos;ESCOPO;TECNICA;FERR;13.2;Possui rastreabilidade de lote?
+13;Ferramentas de Corte, Pastilhas e Abrasivos;ESCOPO;TECNICA;FERR;13.3;Disponibiliza suporte técnico para aplicação dos produtos?
+13;Ferramentas de Corte, Pastilhas e Abrasivos;ESCOPO;TECNICA;FERR;13.4;Possui estoque mínimo para itens críticos?
+
+14;Tintas e Revestimentos;ESCOPO;TECNICA;TINTA;14.1;Emite boletim técnico e FISPQ atualizados?
+14;Tintas e Revestimentos;ESCOPO;TECNICA;TINTA;14.2;Os produtos atendem às normas aplicáveis?
+14;Tintas e Revestimentos;ESCOPO;TECNICA;TINTA;14.3;Possui rastreabilidade de lote e validade?
+14;Tintas e Revestimentos;ESCOPO;TECNICA;TINTA;14.4;Emite certificado de qualidade por lote?
+
+15;Produtos Químicos;ESCOPO;TECNICA;QUIM;15.1;Emite FISPQ conforme legislação vigente?
+15;Produtos Químicos;ESCOPO;TECNICA;QUIM;15.2;Emite certificado de análise por lote?
+15;Produtos Químicos;ESCOPO;TECNICA;QUIM;15.3;Possui rastreabilidade dos lotes fornecidos?
+15;Produtos Químicos;ESCOPO;TECNICA;QUIM;15.4;Possui controle de armazenamento e transporte?
+
+16;Elastômeros, Componentes Poliméricos, Vedações e Vulcanização;ESCOPO;TECNICA;ELAST;16.1;Possui rastreabilidade da matéria-prima utilizada?
+16;Elastômeros, Componentes Poliméricos, Vedações e Vulcanização;ESCOPO;TECNICA;ELAST;16.2;Realiza ensaios físicos e dimensionais por lote?
+16;Elastômeros, Componentes Poliméricos, Vedações e Vulcanização;ESCOPO;TECNICA;ELAST;16.3;Possui controle de formulação e processo?
+16;Elastômeros, Componentes Poliméricos, Vedações e Vulcanização;ESCOPO;TECNICA;ELAST;16.4;Emite certificado de conformidade por lote?
+
+17;Molas;ESCOPO;TECNICA;MOLA;17.1;Possui projeto e cálculo documentado das molas?
+17;Molas;ESCOPO;TECNICA;MOLA;17.2;Realiza ensaios de carga e dimensional por lote?
+17;Molas;ESCOPO;TECNICA;MOLA;17.3;Possui registros rastreáveis dos tratamentos realizados?
+17;Molas;ESCOPO;TECNICA;MOLA;17.4;Possui rastreabilidade da matéria-prima utilizada?
+
+18;Ensaios Não Destrutivos;ESCOPO;TECNICA;END;18.1;Possui inspetores qualificados para os métodos executados?
+18;Ensaios Não Destrutivos;ESCOPO;TECNICA;END;18.2;Possui procedimentos escritos para cada método?
+18;Ensaios Não Destrutivos;ESCOPO;TECNICA;END;18.3;Os equipamentos possuem calibração rastreável?
+18;Ensaios Não Destrutivos;ESCOPO;TECNICA;END;18.4;Emite relatórios rastreáveis ao item inspecionado?
+
+19;Instrumentos de Medição;ESCOPO;TECNICA;INST;19.1;Os instrumentos são fornecidos com certificado de calibração?
+19;Instrumentos de Medição;ESCOPO;TECNICA;INST;19.2;Possui assistência técnica autorizada?
+19;Instrumentos de Medição;ESCOPO;TECNICA;INST;19.3;Disponibiliza equipamento reserva quando necessário?
+19;Instrumentos de Medição;ESCOPO;TECNICA;INST;19.4;Fornece documentação técnica aplicável?
+
+20;SaaS e Serviços de TI;ESCOPO;TECNICA;SAAS;20.1;Possui controles de segurança da informação implementados?
+20;SaaS e Serviços de TI;ESCOPO;TECNICA;SAAS;20.2;Está em conformidade com a LGPD?
+20;SaaS e Serviços de TI;ESCOPO;TECNICA;SAAS;20.3;Possui SLA formalizado?
+20;SaaS e Serviços de TI;ESCOPO;TECNICA;SAAS;20.4;Possui plano de backup e recuperação de desastres?
+
+21;Logística;ESCOPO;TECNICA;LOG;21.1;Possui indicador de entrega no prazo?
+21;Logística;ESCOPO;TECNICA;LOG;21.2;Comunica desvios de prazo e plano de recuperação?
+21;Logística;ESCOPO;TECNICA;LOG;21.3;Possui atendimento emergencial?
+21;Logística;ESCOPO;TECNICA;LOG;21.4;Possui controle de embalagem e transporte?
+21;Logística;ESCOPO;TECNICA;LOG;21.5;Fornece documentação de transporte completa?
+
+22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.1;Possui acreditação ISO/IEC 17025 ou equivalente?
+22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.2;O escopo da acreditação cobre os ensaios executados?
+22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.3;Possui procedimentos documentados para os ensaios?
+22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.4;Os equipamentos possuem calibração rastreável?
+22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.5;Os relatórios emitidos são rastreáveis aos corpos de prova?

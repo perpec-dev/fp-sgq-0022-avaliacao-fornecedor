@@ -1,0 +1,16 @@
+﻿nome;tipo;blocos
+Soldagem;produto;6
+Pintura e Hidrojateamento;produto;7
+Usinagem;produto;8
+Matéria-prima Metálica;produto;10
+Tratamento Térmico;produto;11
+Ferramentas de Corte, Pastilhas e Abrasivos;produto;13
+Tintas e Revestimentos;produto;14
+Produtos Químicos;produto;15
+Elastômeros, Componentes Poliméricos, Vedações e Vulcanização;produto;16
+Molas;produto;17
+Ensaios Não Destrutivos;servico;18
+Instrumentos de Medição;produto;19
+SaaS e Serviços de TI;servico;20
+Logística;servico;21
+Ensaios Destrutivos;servico;22

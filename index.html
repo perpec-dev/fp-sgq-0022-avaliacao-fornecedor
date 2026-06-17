@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Autoavaliação de Fornecedores — Perpec Oilfield Supply</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+<!-- ============================================================= -->
+<!-- ===== CONFIG (ponto único de manutenção) ===================== -->
+<!-- ============================================================= -->
+<script>
+  const CONFIG = {
+    // Cole aqui a URL do webhook do Make (cenário Monday.com)
+    WEBHOOK_URL: "",
+    // Fontes de dados opcionais no repositório Git. Se ausentes,
+    // o portal usa os bancos embutidos mais abaixo (fallback).
+    PERGUNTAS_CSV_URL: "perguntas.csv",
+    ESCOPOS_CSV_URL:   "escopo.csv",
+    LOGO_URL:          "PERPEC - LOGO PRINCIPAL.png",
+    // Referência do documento exibida no cabeçalho / rodapé do PDF
+    DOC_REF: "FP-SGQ-0015 RevForm.00"
+  };
+
+  // ---- Parâmetros de pontuação (facilmente revisáveis) ----------
+  const SCORING = {
+    CONFORME: 100,   // Conforme COM evidência
+    REGULAR:  75,    // Regular (ou Conforme SEM evidência)
+    NC:       0,     // Não Conforme
+    PESO_SGQ:     0.5,   // peso do bloco SGQ na nota final
+    PESO_TECNICA: 0.5    // peso do bloco técnico na nota final
+  };
+
+  // ---- Faixas de classificação (cor + rótulo) -------------------
+  const FAIXAS = [
+    { min: 0,  max: 59.999, label: "Não Aprovado",            cor: "#C0392B", bg: "#FDECEA" },
+    { min: 60, max: 79.999, label: "Aprovado com Ressalvas",  cor: "#B7791F", bg: "#FEF7E6" },
+    { min: 80, max: 100,    label: "Aprovado",                cor: "#2E7D32", bg: "#EAF6EB" }
+  ];
+
+  // Formatos aceitos para upload de evidências/certificados
+  const ACCEPT_EVID = ".pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png";
+  const ACCEPT_CNPJ = ".pdf,.jpg,.jpeg,.png";
+</script>
+
+<style>
+/* ====== SISTEMA DE DESIGN (idêntico ao formulário existente) ====== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --red:#C0392B;--red2:#961c13;--dark:#1A1210;
+  --bg:#F2F1ED;--surface:#FFFFFF;--surface2:#F8F7F5;
+  --border:#E0DBD5;--border2:#C5BDB5;
+  --text:#18171A;--muted:#6A6760;
+  --accent:#C0392B;--accent-lt:#FDF0EF;
+  --radius:8px;--radius-lg:12px;
+  --green:#2E7D32;--green-bg:#EAF6EB;--green-bd:#A7D7AA;
+  --yellow:#B7791F;--yellow-bg:#FEF7E6;--yellow-bd:#F0D98A;
+}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+.site-header{background:#fff;border-bottom:3px solid var(--red);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.header-inner{max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:.7rem 1.5rem}
+.header-logo img{height:44px;width:auto;display:block}
+.header-right{text-align:right}
+.header-right .title{font-size:15px;font-weight:700;color:var(--dark)}
+.header-right .sub{font-size:11px;color:var(--muted);margin-top:2px}
+.doc-strip{background:var(--dark);padding:.55rem 1.5rem}
+.doc-strip-inner{max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem}
+.doc-code-label{font-size:11px;color:#A09090;letter-spacing:.05em;text-transform:uppercase;margin-right:4px}
+.doc-code-prefix{font-size:12px;font-weight:700;color:#fff;letter-spacing:.08em;margin-right:2px}
+.doc-code-val{font-family:"Courier New",monospace;font-size:14px;font-weight:700;color:#fff;letter-spacing:.1em}
+.doc-meta{font-size:11px;color:#B0A0A0}
+.doc-req{font-size:11px;color:#E09090}
+.sticky-top{position:sticky;top:0;z-index:100}
+.wrap{max-width:900px;margin:0 auto;padding:1.8rem 1rem 5rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:1.1rem;box-shadow:0 1px 3px rgba(0,0,0,.05);position:relative}
+.card-head{background:var(--dark);padding:.65rem 1.3rem;display:flex;align-items:center;gap:8px;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+.card-head h2{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#D4C8C4}
+.card-head svg{width:13px;height:13px;stroke:#C0392B;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.card-body{padding:1.25rem 1.3rem}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px}
+.full{grid-column:1/-1}
+@media(max-width:600px){.g2,.g3{grid-template-columns:1fr}.full{grid-column:1}}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.req{color:var(--red);margin-left:1px}
+.field input,.field textarea,.field select{border:1px solid var(--border2);border-radius:var(--radius);padding:9px 11px;font-size:14px;font-family:inherit;color:var(--text);background:var(--surface);transition:border-color .14s,box-shadow .14s;width:100%}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px rgba(192,57,43,.12)}
+.field input[readonly]{background:var(--surface2);color:var(--muted);cursor:default;border-style:dashed}
+.field textarea{resize:vertical;min-height:72px}
+.divider{height:1px;background:var(--border);margin:16px 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border:none;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;transition:all .13s;font-family:inherit;white-space:nowrap}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.btn:active{transform:translateY(0)}
+.btn-dark{background:var(--dark);color:#fff}.btn-dark:hover{background:#2D1F1A}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:var(--red2)}
+.btn-outline{background:transparent;color:var(--text);border:1px solid var(--border2)}
+.btn-outline:hover{background:var(--surface2);border-color:#9A9087}
+.btn:disabled{background:var(--border2) !important;cursor:not-allowed;color:var(--muted);transform:none !important;box-shadow:none !important}
+.act-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.1rem 1.3rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.act-group{display:flex;gap:8px;flex-wrap:wrap}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--dark);color:#fff;border-radius:var(--radius-lg);padding:12px 20px;font-size:13.5px;font-weight:600;pointer-events:none;opacity:0;transition:opacity .2s,transform .2s;z-index:99999;max-width:90vw;text-align:center;white-space:pre-line}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.success{background:#155724}.toast.error{background:var(--red)}
+.count-pill{display:inline-flex;align-items:center;background:rgba(192,57,43,.15);color:#E08070;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;margin-left:auto}
+.page-footer{text-align:center;font-size:12px;color:#aaa;margin-top:32px;padding-bottom:24px}
+@media(max-width:768px){.act-bar{flex-direction:column;align-items:stretch}.act-group{justify-content:stretch}.act-bar .btn{width:100%}}
+@media(max-width:480px){.header-logo img{height:36px}.card-body{padding:1rem}}
+
+/* ====== COMPONENTES NOVOS (mesma linguagem visual) ====== */
+
+/* Aviso LGPD */
+.lgpd-note{font-size:13px;color:var(--text);line-height:1.6}
+.lgpd-note ul{margin:8px 0 0 18px;color:var(--muted)}
+.lgpd-note li{margin-bottom:5px}
+.lgpd-accept{display:flex;align-items:flex-start;gap:10px;margin-top:16px;padding:12px 14px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--surface2);cursor:pointer;transition:border-color .14s,background .14s}
+.lgpd-accept:hover{border-color:#9A9087}
+.lgpd-accept.ok{border-color:var(--green);background:var(--green-bg)}
+.lgpd-accept input{width:18px;height:18px;margin-top:1px;accent-color:var(--red);flex-shrink:0;cursor:pointer}
+.lgpd-accept span{font-size:13px;font-weight:600;color:var(--text)}
+
+/* Trava do conteúdo até aceite */
+#conteudo.locked{opacity:.4;pointer-events:none;filter:grayscale(.35);user-select:none}
+.lock-hint{display:none;text-align:center;font-size:12.5px;color:var(--muted);font-style:italic;margin:-.4rem 0 1rem}
+#conteudo.locked ~ .lock-hint{display:block}
+
+/* Upload de arquivo (chip) */
+.file-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.file-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border:1.5px dashed var(--border2);background:var(--surface2);border-radius:var(--radius);font-size:12.5px;font-weight:600;color:var(--red);cursor:pointer;transition:border-color .13s,background .13s;font-family:inherit}
+.file-btn:hover{border-color:var(--red);background:var(--accent-lt)}
+.file-btn svg{width:14px;height:14px;stroke:var(--red);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.file-name{font-size:12px;color:var(--text);background:#fff;border:1px solid var(--border);border-radius:6px;padding:5px 10px;display:inline-flex;align-items:center;gap:8px;max-width:100%}
+.file-name.empty{color:var(--muted);font-style:italic;background:transparent;border:none;padding:5px 0}
+.file-name .x{cursor:pointer;color:var(--muted);font-weight:700;line-height:1;font-size:15px}
+.file-name .x:hover{color:var(--red)}
+.file-name .ok-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+
+/* Pills sim/não e escopos */
+.opt-group{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px}
+.opt-radio{display:none}
+.opt-label{padding:7px 18px;border-radius:20px;font-size:13px;font-weight:600;border:1px solid var(--border2);cursor:pointer;background:var(--surface);color:var(--muted);transition:all .13s;user-select:none}
+.opt-sim:checked + .opt-label{background:var(--green);border-color:var(--green);color:#fff}
+.opt-nao:checked + .opt-label{background:var(--dark);border-color:var(--dark);color:#fff}
+
+.escopo-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+@media(max-width:600px){.escopo-grid{grid-template-columns:1fr}}
+.escopo-chip{display:flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid var(--border2);border-radius:var(--radius);cursor:pointer;background:var(--surface);transition:border-color .13s,background .13s;font-size:13px}
+.escopo-chip:hover{border-color:#9A9087;background:var(--surface2)}
+.escopo-chip input{width:17px;height:17px;accent-color:var(--red);cursor:pointer;flex-shrink:0}
+.escopo-chip.sel{border-color:var(--red);background:var(--accent-lt)}
+.escopo-chip .esc-name{font-weight:600;color:var(--text)}
+.escopo-chip .esc-tag{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:20px;margin-left:auto}
+.esc-tag.produto{background:#EEF2FF;color:#3D5AC0}
+.esc-tag.servico{background:#F1ECE6;color:#8A6D3B}
+
+/* Bloco de pergunta */
+.q-block{border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px;margin-bottom:12px;background:var(--surface);transition:border-color .14s}
+.q-block.done{border-left:4px solid var(--green)}
+.q-block.nc{border-left:4px solid var(--red)}
+.q-block.reg{border-left:4px solid var(--yellow)}
+.q-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:11px}
+.q-code{font-family:"Courier New",monospace;font-size:12px;font-weight:700;color:#fff;background:var(--dark);border-radius:6px;padding:3px 8px;flex-shrink:0}
+.q-text{flex:1;font-size:13.5px;line-height:1.45;color:var(--text);font-weight:500}
+.q-score{flex-shrink:0;min-width:54px;text-align:center;font-size:13px;font-weight:800;border-radius:20px;padding:4px 10px;background:var(--surface2);color:var(--muted)}
+.q-score.c{background:var(--green-bg);color:var(--green)}
+.q-score.r{background:var(--yellow-bg);color:var(--yellow)}
+.q-score.n{background:var(--accent-lt);color:var(--red)}
+.status-pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
+.st-radio{display:none}
+.st-label{padding:6px 14px;border-radius:20px;font-size:12.5px;font-weight:600;border:1px solid var(--border2);cursor:pointer;background:var(--surface);color:var(--muted);transition:all .13s;user-select:none}
+.st-conf:checked + .st-label{background:var(--green);border-color:var(--green);color:#fff}
+.st-reg:checked + .st-label{background:var(--yellow);border-color:var(--yellow);color:#fff}
+.st-nc:checked + .st-label{background:var(--red);border-color:var(--red);color:#fff}
+.q-evid{margin-bottom:9px}
+.q-com textarea{width:100%;border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:13px;font-family:inherit;min-height:46px;resize:vertical;color:var(--text)}
+.q-com textarea:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px rgba(192,57,43,.12)}
+.q-warn{display:none;margin-top:8px;font-size:11.5px;font-weight:600;color:var(--yellow);background:var(--yellow-bg);border:1px solid var(--yellow-bd);border-radius:6px;padding:6px 9px}
+.q-warn.show{display:block}
+.bloco-sub{font-size:11px;color:var(--muted);margin:-.5rem 0 .9rem;font-weight:500}
+.bloco-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-left:auto;flex-shrink:0}
+.bloco-tag.sgq{background:rgba(192,57,43,.2);color:#E08070}
+.bloco-tag.tec{background:rgba(99,130,207,.25);color:#9DB0E8}
+
+/* Indicador em tempo real — faixa fixa */
+.rt-strip{background:var(--surface);border-bottom:1px solid var(--border);box-shadow:0 2px 6px rgba(0,0,0,.06);display:none}
+.rt-strip.on{display:block}
+.rt-inner{max-width:900px;margin:0 auto;display:flex;align-items:center;gap:14px;padding:.5rem 1.5rem}
+.rt-track{flex:1;height:9px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;overflow:hidden;min-width:80px}
+.rt-fill{height:100%;width:0%;border-radius:20px;transition:width .3s ease,background .3s}
+.rt-num{font-size:14px;font-weight:800;color:var(--text);min-width:46px;text-align:right}
+.rt-cls{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.rt-prog{font-size:11px;color:var(--muted);white-space:nowrap}
+@media(max-width:600px){.rt-inner{padding:.5rem 1rem;gap:9px}.rt-prog{display:none}}
+
+/* Card de resultado consolidado */
+.result-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px;margin-bottom:14px}
+@media(max-width:600px){.result-grid{grid-template-columns:1fr}}
+.result-tile{border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;background:var(--surface2)}
+.result-tile .rt-label{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.result-tile .rt-val{font-size:30px;font-weight:800;color:var(--text);margin-top:4px;line-height:1}
+.result-tile.final{background:var(--dark);border-color:var(--dark)}
+.result-tile.final .rt-label{color:#A09090}
+.result-tile.final .rt-val{color:#fff}
+.result-class{display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;font-weight:800;border-radius:var(--radius);padding:12px;border:1px solid var(--border)}
+.result-class .dot{width:11px;height:11px;border-radius:50%}
+.empty-state{text-align:center;padding:2rem 1rem;color:var(--muted);font-size:13px;border:1.5px dashed var(--border2);border-radius:var(--radius-lg)}
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-logo">
+        <img src="PERPEC - LOGO PRINCIPAL.png" alt="Perpec Oilfield Supply" onerror="this.style.display='none'"/>
+      </div>
+      <div class="header-right">
+        <div class="title">Autoavaliação de Fornecedores</div>
+        <div class="sub">Portal de qualificação e homologação</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="doc-strip">
+    <div class="doc-strip-inner">
+      <div>
+        <span class="doc-code-label">Protocolo</span>
+        <span class="doc-code-prefix">AF</span>
+        <span class="doc-code-val" id="hdrProtocolo">—</span>
+      </div>
+      <span class="doc-meta" id="docRef">—</span>
+      <span class="doc-req">* Campos obrigatórios</span>
+    </div>
+  </div>
+
+  <!-- Indicador em tempo real -->
+  <div class="rt-strip" id="rtStrip">
+    <div class="rt-inner">
+      <span class="rt-prog" id="rtProg">0 / 0 respondidas</span>
+      <div class="rt-track"><div class="rt-fill" id="rtFill"></div></div>
+      <span class="rt-num" id="rtNum">—</span>
+      <span class="rt-cls" id="rtCls" style="background:var(--surface2);color:var(--muted)">—</span>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <!-- ===== AVISO LGPD ===== -->
+  <div class="card">
+    <div class="card-head">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <h2>Aviso de Privacidade e LGPD</h2>
+    </div>
+    <div class="card-body">
+      <div class="lgpd-note">
+        Antes de iniciar o preenchimento, leia atentamente:
+        <ul>
+          <li>Todos os documentos enviados serão armazenados de forma segura.</li>
+          <li>As informações serão utilizadas <strong>exclusivamente</strong> para fins de qualificação, homologação e monitoramento de fornecedores.</li>
+          <li>Os dados serão tratados em conformidade com a <strong>Lei Geral de Proteção de Dados (LGPD)</strong>.</li>
+          <li>Os documentos enviados serão armazenados em ambiente corporativo controlado (<strong>Monday.com</strong>), com acesso restrito à equipe responsável pela gestão de fornecedores.</li>
+        </ul>
+      </div>
+      <label class="lgpd-accept" id="lgpdBox">
+        <input type="checkbox" id="lgpdCheck" onchange="toggleLGPD()">
+        <span>Li e estou de acordo com o tratamento dos meus dados conforme descrito acima. <span class="req">*</span></span>
+      </label>
+    </div>
+  </div>
+
+  <div id="conteudo" class="locked">
+
+    <!-- ===== IDENTIFICAÇÃO DO FORNECEDOR ===== -->
+    <div class="card">
+      <div class="card-head">
+        <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><line x1="9" y1="9" x2="9" y2="9.01"/><line x1="9" y1="13" x2="9" y2="13.01"/></svg>
+        <h2>Identificação do Fornecedor</h2>
+      </div>
+      <div class="card-body">
+        <div class="g2" style="margin-bottom:13px">
+          <div class="field"><label>Razão Social <span class="req">*</span></label><input type="text" id="razaoSocial" placeholder="Razão social completa"></div>
+          <div class="field"><label>Nome Fantasia <span class="req">*</span></label><input type="text" id="nomeFantasia" placeholder="Nome fantasia"></div>
+        </div>
+        <div class="g2" style="margin-bottom:13px">
+          <div class="field"><label>CNPJ <span class="req">*</span></label><input type="text" id="cnpj" placeholder="00.000.000/0000-00" oninput="maskCNPJ(this);atualizarProtocolo()" maxlength="18"></div>
+          <div class="field">
+            <label>Cartão CNPJ <span class="req">*</span></label>
+            <div id="cnpjUpload"></div>
+          </div>
+        </div>
+        <div class="g3" style="margin-bottom:13px">
+          <div class="field full"><label>Endereço <span class="req">*</span></label><input type="text" id="endereco" placeholder="Logradouro, nº, bairro"></div>
+        </div>
+        <div class="g2" style="margin-bottom:13px">
+          <div class="field"><label>Cidade <span class="req">*</span></label><input type="text" id="cidade" placeholder="Cidade"></div>
+          <div class="field"><label>Estado (UF) <span class="req">*</span></label><input type="text" id="estado" placeholder="UF" maxlength="2" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z]/g,'')"></div>
+        </div>
+        <div class="divider"></div>
+        <div class="g2" style="margin-bottom:13px">
+          <div class="field"><label>Nome do Responsável <span class="req">*</span></label><input type="text" id="responsavel" placeholder="Nome completo"></div>
+          <div class="field"><label>Cargo <span class="req">*</span></label><input type="text" id="cargo" placeholder="Cargo / função"></div>
+        </div>
+        <div class="g2">
+          <div class="field"><label>E-mail <span class="req">*</span></label><input type="email" id="email" placeholder="email@empresa.com.br"></div>
+          <div class="field"><label>Telefone <span class="req">*</span></label><input type="text" id="telefone" placeholder="(00) 00000-0000" oninput="maskTel(this)" maxlength="16"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CERTIFICAÇÃO SGQ ===== -->
+    <div class="card">
+      <div class="card-head">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M9 13.5L7 22l5-3 5 3-2-8.5"/></svg>
+        <h2>Certificação de Sistema de Gestão da Qualidade</h2>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label>Possui certificação de Sistema de Gestão da Qualidade válida? <span class="req">*</span></label>
+          <div class="opt-group">
+            <input type="radio" class="opt-radio opt-sim" name="certSGQ" id="cert_sim" value="Sim" onchange="toggleCert()">
+            <label class="opt-label" for="cert_sim">Sim</label>
+            <input type="radio" class="opt-radio opt-nao" name="certSGQ" id="cert_nao" value="Não" onchange="toggleCert()">
+            <label class="opt-label" for="cert_nao">Não</label>
+          </div>
+        </div>
+        <div class="field" id="certUploadWrap" style="display:none;margin-top:14px">
+          <label>Anexar certificado de SGQ <span class="req">*</span></label>
+          <div id="certUpload"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ESCOPOS ===== -->
+    <div class="card">
+      <div class="card-head">
+        <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <h2>Escopo de Fornecimento</h2>
+        <span class="count-pill" id="escCount">0 selecionados</span>
+      </div>
+      <div class="card-body">
+        <p class="lgpd-note" style="margin-bottom:12px">Selecione todos os escopos aplicáveis ao seu fornecimento. As perguntas técnicas serão carregadas conforme a sua seleção.</p>
+        <div class="escopo-grid" id="escopoGrid"></div>
+      </div>
+    </div>
+
+    <!-- ===== QUESTIONÁRIO DINÂMICO ===== -->
+    <div id="questionario"></div>
+
+    <!-- ===== RESULTADO CONSOLIDADO ===== -->
+    <div class="card">
+      <div class="card-head">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <h2>Resultado da Avaliação</h2>
+      </div>
+      <div class="card-body">
+        <div class="result-grid">
+          <div class="result-tile"><div class="rt-label">Nota SGQ (50%)</div><div class="rt-val" id="resSGQ">—</div></div>
+          <div class="result-tile"><div class="rt-label">Nota Técnica (50%)</div><div class="rt-val" id="resTec">—</div></div>
+          <div class="result-tile final"><div class="rt-label">Nota Final</div><div class="rt-val" id="resFinal">—</div></div>
+        </div>
+        <div class="result-class" id="resClass" style="background:var(--surface2);color:var(--muted)">
+          <span class="dot" style="background:var(--muted)"></span><span id="resClassTxt">Aguardando respostas…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== AÇÕES ===== -->
+    <div class="act-bar">
+      <div class="act-group">
+        <button class="btn btn-outline" onclick="limpar()">Limpar Tudo</button>
+        <button class="btn btn-dark" onclick="gerarPDF()">⬇ Baixar PDF</button>
+      </div>
+      <div class="act-group">
+        <button class="btn btn-red" id="btnEnviar" onclick="enviar()">⬆ Enviar Autoavaliação</button>
+      </div>
+    </div>
+
+  </div><!-- /#conteudo -->
+  <div class="lock-hint">Marque o aceite de privacidade acima para liberar o formulário.</div>
+
+  <div class="page-footer">Perpec Oilfield Supply — Portal de Autoavaliação de Fornecedores</div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+   BANCO DE PERGUNTAS (fallback embutido — derivado do XLSX).
+   Fonte única: cada bloco é um objeto. Nada espalhado pelo código.
+   grupo:      SGQ | PRODUCAO_GERAL | ESCOPO
+   bloco_nota: SGQ | TECNICA   (define o peso 50/50 da nota final)
+   ================================================================ */
+const BANCO_PERGUNTAS = [
+  {id:"1",categoria:"Gestão da Qualidade — Organização do Fornecedor",grupo:"SGQ",bloco_nota:"SGQ",perguntas:[
+    {c:"1.1",t:"Existe Manual da Qualidade?"},
+    {c:"1.2",t:"Existe Política e Objetivos da Qualidade?"},
+    {c:"1.3",t:"Possui listagem de Normas/Procedimentos internos?"},
+    {c:"1.4",t:"Possui processo de comunicação interna e externa?"},
+    {c:"1.5",t:"Possui funções, responsabilidades e autoridades definidas em relação ao SGQ?"},
+    {c:"1.6",t:"Disponibiliza recursos essenciais para definição, implementação, manutenção e melhoria do SGQ?"},
+    {c:"1.7",t:"Possui processo de controle de competência (incluindo treinamento) do pessoal que influencia na qualidade do produto/serviço?"},
+    {c:"1.8",t:"Disponibiliza, administra e mantém o ambiente de trabalho necessário para atingir conformidade com os requisitos aplicáveis?"},
+    {c:"1.9",t:"Possui processo de controle de documentos incluindo sistemática para controle de emissão/revisão?"},
+    {c:"1.10",t:"Possui processo de controle de registros?"},
+    {c:"1.11",t:"Possui requisitos do cliente, legais e outros aplicáveis definidos?"},
+    {c:"1.12",t:"Identifica e planeja os processos e documentos necessários para a realização do serviço/produto?"},
+    {c:"1.13",t:"Identifica e realiza a gestão dos riscos para a realização do serviço/produto?"},
+    {c:"1.14",t:"Possui controle e processos sobre a propriedade do cliente?"},
+    {c:"1.15",t:"Possui processo de gestão de estoque e realiza controle e preservação de produtos?"},
+    {c:"1.16",t:"Possui controle de não conformidades, ação corretiva e preventiva?"},
+    {c:"1.17",t:"Possui processo de gestão da mudança?"},
+    {c:"1.18",t:"Realiza a medição, análise e melhoria do SGQ?"}
+  ]},
+  {id:"2",categoria:"Gestão da Qualidade — Suprimentos",grupo:"SGQ",bloco_nota:"SGQ",perguntas:[
+    {c:"2.1",t:"Existe sistemática para seleção, qualificação e avaliação de fornecedores?"},
+    {c:"2.2",t:"Existe sistemática para tratamento do material não-conforme no recebimento, assegurando que não seja utilizado/instalado?"}
+  ]},
+  {id:"3",categoria:"Gestão da Qualidade — Saúde, Segurança e Meio Ambiente (SMS)",grupo:"SGQ",bloco_nota:"SGQ",perguntas:[
+    {c:"3.1",t:"Existe manual de SSO (Segurança e Saúde Ocupacional)?"},
+    {c:"3.2",t:"Existe Programa de Prevenção de Riscos Ambientais (PPRA)?"},
+    {c:"3.3",t:"Possui Programa de Controle Médico e Saúde Ocupacional (PCMSO)?"},
+    {c:"3.4",t:"Possui indicadores de Taxa de Acidente com e sem Afastamento?"},
+    {c:"3.5",t:"Possui SESMT, conforme NR-04 (M.T.E.)?"},
+    {c:"3.6",t:"Possui CIPA?"},
+    {c:"3.7",t:"Possui sistemática de avaliação e investigação de acidentes, com metodologia de análise de causas considerando fatores humanos?"},
+    {c:"3.8",t:"Possui plano de treinamento em SMS?"},
+    {c:"3.9",t:"Possui plano de gerenciamento de resíduos?"},
+    {c:"3.10",t:"Possui Licença de Operação expedida por Órgão Ambiental (informar nº nos comentários)?"},
+    {c:"3.11",t:"Possui processo para análise de risco operacional?"},
+    {c:"3.12",t:"Possui lista de controle de EPIs apropriados conforme as atividades a serem realizadas?"}
+  ]},
+  {id:"4",categoria:"Gestão da Qualidade — Outros Requisitos",grupo:"SGQ",bloco_nota:"SGQ",perguntas:[
+    {c:"4.1",t:"Possui política/procedimento de gestão de ativos e indicadores (KPIs) com metas estabelecidas?"},
+    {c:"4.2",t:"Possui política/procedimento de segurança da informação, cibersegurança e privacidade e indicadores (KPIs) com metas?"},
+    {c:"4.3",t:"Possui sistemática implementada para tratamento de dados pessoais com base na LGPD?"},
+    {c:"4.4",t:"Possui iniciativas/projetos para eficiência energética e/ou controle de emissão de gases de efeito estufa (GEE)?"},
+    {c:"4.5",t:"Possui gestão/política de compliance e gestão/política antissuborno?"},
+    {c:"4.6",t:"Possui mecanismos que garantam o respeito aos Direitos Humanos (princípios fundamentais do trabalho da OIT)?"},
+    {c:"4.7",t:"Possui código de conduta publicamente acessível, aprovado pela alta administração, com diretrizes de direitos humanos?"}
+  ]},
+  {id:"5",categoria:"Processos de Produção — Geral",grupo:"PRODUCAO_GERAL",bloco_nota:"TECNICA",perguntas:[
+    {c:"5.1",t:"Existe programação de produto/serviço que permita atender ao cronograma de entrega previamente estabelecido?"},
+    {c:"5.2",t:"Existe maquinário e ferramental adequado para execução dos serviços/produtos (descrever nos comentários)?"},
+    {c:"5.3",t:"Possui procedimento operacional para execução do serviço/produto, incluindo instruções/folhas de processo?"},
+    {c:"5.4",t:"Possui programação de manutenção preventiva dos equipamentos de produção ou para execução de serviços?"},
+    {c:"5.5",t:"Possui sistemática para identificação do produto e sua situação de inspeção durante a produção/execução?"},
+    {c:"5.6",t:"Possui sistemática que define o tratamento de material/serviço não-conforme na produção/execução?"},
+    {c:"5.7",t:"Possui sistemática para identificação do produto e sua situação no estoque?"},
+    {c:"5.8",t:"Possui sistemática para armazenamento, manuseio e preservação do produto acabado?"}
+  ]},
+  {id:"6",categoria:"Produção — Soldagem",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"6.1",t:"Existência de Procedimentos de Soldagem qualificados?"},
+    {c:"6.2",t:"Existência de estufas para secagem de eletrodos?"},
+    {c:"6.3",t:"Existência de estufas para manutenção da secagem de eletrodos?"},
+    {c:"6.4",t:"Existência de estufas para armazenamento de eletrodos?"},
+    {c:"6.5",t:"Existe rotina de calibração das máquinas de solda?"},
+    {c:"6.6",t:"Os termômetros/termo-higrômetros das estufas estão calibrados?"},
+    {c:"6.7",t:"Possui inspetor nível 1 qualificado para acompanhamento do processo de soldagem?"}
+  ]},
+  {id:"7",categoria:"Produção — Pintura e Hidrojateamento",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"7.1",t:"Existência de procedimentos de pintura (conforme requisitos dos clientes)?"},
+    {c:"7.2",t:"Existe área específica para pintura isenta de contaminantes (poeira, óleos e graxas)?"},
+    {c:"7.3",t:"Existência de local com temperatura e umidade controladas para pintura em condições adversas?"},
+    {c:"7.4",t:"Possui inspetor nível 1 qualificado para acompanhamento do processo de pintura?"}
+  ]},
+  {id:"8",categoria:"Produção — Usinagem",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"8.1",t:"Existência de tornos com capacidade para atender a demanda de fabricação?"},
+    {c:"8.2",t:"Existe layout produtivo definido e fluxo adequado de fabricação, inspeção e expedição?"},
+    {c:"8.4",t:"Possui capacidade para atendimento emergencial/turnaround?"},
+    {c:"8.5",t:"Possui experiência comprovada no segmento de óleo e gás?"},
+    {c:"8.6",t:"Possui referências técnicas relevantes e rastreáveis?"},
+    {c:"8.8",t:"Possui plano de calibração vigente para os instrumentos de medição?"},
+    {c:"8.9",t:"Os certificados de calibração possuem rastreabilidade RBC/INMETRO?"},
+    {c:"8.10",t:"Possui instrumentos adequados para inspeção dimensional e de roscas API?"},
+    {c:"8.11",t:"Existe controle de validade e identificação dos instrumentos?"},
+    {c:"8.12",t:"Atende às normas API aplicáveis?"},
+    {c:"8.13",t:"Existem registros rastreáveis das inspeções realizadas?"}
+  ]},
+  {id:"9",categoria:"Produção — Laboratório de Calibração",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"9.1",t:"Sistemática definindo a calibração de instrumentos dentro dos prazos pré-estabelecidos?"},
+    {c:"9.2",t:"Credenciamento junto ao Instituto Local (descrever o nome, ex.: RBC no Brasil)?"},
+    {c:"9.3",t:"Possui padrões rastreados nacional ou internacionalmente?"},
+    {c:"9.4",t:"Possui procedimento de calibração de instrumentos?"},
+    {c:"9.5",t:"Possui evidência de treinamento da equipe de metrologia?"}
+  ]},
+  {id:"10",categoria:"Matéria-Prima Metálica (aço, latão, tarugos, barras, forjados, fundidos)",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"10.1",t:"Emite certificado de qualidade (3.1/3.2 conforme EN 10204) para cada lote?"},
+    {c:"10.2",t:"Possui rastreabilidade do material por número de corrida/lote (heat/melt number) da usina?"},
+    {c:"10.3",t:"Realiza/comprova análise química e ensaios mecânicos conforme especificação (API 6A, API 5CT, ASTM, AISI, NACE MR0175)?"},
+    {c:"10.4",t:"Os materiais atendem aos requisitos de serviço ácido (sour service/H2S) quando aplicável?"},
+    {c:"10.5",t:"Possui controle de estoque com FIFO e identificação por especificação/dimensão?"},
+    {c:"10.6",t:"Possui sistemática para preservação contra corrosão durante armazenamento e transporte?"}
+  ]},
+  {id:"11",categoria:"Tratamento Térmico",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"11.1",t:"Possui fornos com registro contínuo de temperatura e calibração vigente dos termopares/instrumentos?"},
+    {c:"11.2",t:"Os fornos são qualificados conforme AMS 2750 (TUS), API 6A ou equivalente?"},
+    {c:"11.3",t:"Possui procedimento qualificado para cada tipo de tratamento (têmpera, revenimento, normalização, alívio de tensão)?"},
+    {c:"11.4",t:"Emite relatório de tratamento térmico com gráficos de temperatura × tempo rastreáveis ao lote?"},
+    {c:"11.5",t:"Realiza ensaios mecânicos pós-tratamento (dureza, tração, impacto) conforme requisitos do produto?"}
+  ]},
+  {id:"13",categoria:"Ferramentas de Corte, Pastilhas e Abrasivos",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"13.1",t:"Os produtos possuem identificação clara de fabricante, código, geometria, classe/grade e norma aplicável (ISO, ANSI)?"},
+    {c:"13.2",t:"Possui rastreabilidade de lote dos produtos fornecidos?"},
+    {c:"13.3",t:"Disponibiliza suporte técnico para seleção, parametrização e otimização de processo?"},
+    {c:"13.4",t:"Possui estoque mínimo/pronta entrega para itens críticos definidos com o cliente?"}
+  ]},
+  {id:"14",categoria:"Tintas e Revestimentos",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"14.1",t:"Emite Boletim Técnico (TDS) e FISPQ/SDS atualizados para cada produto?"},
+    {c:"14.2",t:"Os produtos atendem às normas/sistemas de pintura aplicáveis (NORSOK M-501, ISO 12944, Petrobras N-2912 etc.)?"},
+    {c:"14.3",t:"Possui rastreabilidade de lote e prazo de validade (shelf life) declarado em cada embalagem?"},
+    {c:"14.4",t:"Emite certificado de qualidade do produto (CoA) com resultados de ensaios físico-químicos por lote?"}
+  ]},
+  {id:"15",categoria:"Produtos Químicos (óleos, solventes, insumos para reações)",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"15.1",t:"Emite FISPQ/SDS conforme NBR 14725/GHS para todos os produtos fornecidos?"},
+    {c:"15.2",t:"Emite Certificado de Análise (CoA) por lote com parâmetros físico-químicos rastreáveis?"},
+    {c:"15.3",t:"Possui controle de lote, validade e condições de armazenamento adequadas (temperatura, ventilação, segregação)?"},
+    {c:"15.4",t:"Possui licenciamento e autorizações específicas (Polícia Federal, Exército, IBAMA, ANP) conforme aplicável?"},
+    {c:"15.5",t:"Realiza o transporte conforme regulamentação de produtos perigosos (ANTT/ADR), com motorista MOPP e veículo adequado?"}
+  ]},
+  {id:"16",categoria:"Elastômeros, Vedações e Vulcanização (O-rings, gaxetas, retentores)",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"16.1",t:"Os compostos são identificados por código/material (NBR, HNBR, FKM, FFKM, AFLAS etc.) com rastreabilidade ao lote de borracha?"},
+    {c:"16.2",t:"Emite certificado com propriedades físicas (dureza, tração, alongamento, compression set) por lote?"},
+    {c:"16.3",t:"Os produtos atendem aos requisitos NORSOK M-710, API 6A Annex F, ISO 23936 ou equivalentes quando aplicáveis?"},
+    {c:"16.4",t:"Possui controle de validade (shelf life) conforme ARP5316/ISO 2230 e armazenamento controlado?"},
+    {c:"16.5",t:"Para serviços de vulcanização, possui procedimento qualificado e controle de parâmetros (temperatura, pressão, tempo)?"}
+  ]},
+  {id:"17",categoria:"Molas",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"17.1",t:"Possui projeto/cálculo da mola documentado com parâmetros de força, deslocamento e vida útil?"},
+    {c:"17.2",t:"Realiza ensaios de carga, dureza e dimensional por lote?"},
+    {c:"17.3",t:"Realiza tratamento térmico (alívio de tensão) e shot peening quando aplicável, com registros rastreáveis?"},
+    {c:"17.4",t:"Possui rastreabilidade da matéria-prima (fio/aço) ao certificado de origem?"}
+  ]},
+  {id:"18",categoria:"Ensaios Não Destrutivos (END)",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"18.1",t:"Possui inspetores qualificados/certificados conforme SNQC, ASNT SNT-TC-1A, ISO 9712 ou equivalente para os métodos executados?"},
+    {c:"18.2",t:"Possui procedimentos escritos e aprovados para cada método (LP, PM, US, RX, AE, ECT)?"},
+    {c:"18.3",t:"Os equipamentos de END possuem calibração/verificação periódica com registros rastreáveis?"},
+    {c:"18.4",t:"Os consumíveis (reveladores, penetrantes, partículas, filmes) possuem certificado e estão dentro da validade?"},
+    {c:"18.5",t:"Emite relatórios de inspeção rastreáveis ao item, com critério de aceitação claramente referenciado?"},
+    {c:"18.6",t:"Possui licença CNEN vigente para uso de fontes radioativas quando aplicável?"}
+  ]},
+  {id:"19",categoria:"Instrumentos de Medição (fabricante/revendedor)",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"19.1",t:"Os instrumentos são fornecidos com certificado de calibração rastreável (RBC/INMETRO ou equivalente internacional)?"},
+    {c:"19.2",t:"Possui assistência técnica autorizada e prazo definido para manutenção corretiva no Brasil?"},
+    {c:"19.3",t:"Disponibiliza unidade reserva (loaner) durante manutenção/calibração de itens críticos?"},
+    {c:"19.4",t:"Os instrumentos possuem manual técnico e declaração de conformidade aplicável (INMETRO, CE, ATEX quando aplicável)?"}
+  ]},
+  {id:"20",categoria:"SaaS, Software e Serviços de TI",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"20.1",t:"Possui certificação ou aderência declarada a normas de segurança da informação (ISO 27001, SOC 2)?"},
+    {c:"20.2",t:"Está em conformidade com a LGPD, com DPO designado e contrato com cláusula de tratamento de dados?"},
+    {c:"20.3",t:"Possui SLA contratual com uptime garantido, suporte técnico e tempo de resposta para incidentes?"},
+    {c:"20.4",t:"Possui plano de backup, recuperação de desastres (DR) e portabilidade de dados em caso de descontinuidade?"},
+    {c:"20.5",t:"Os dados ficam armazenados em data centers com certificação reconhecida (Tier III+, ISO 27001) e localização declarada?"}
+  ]},
+  {id:"21",categoria:"Logística, Prazo e Capacidade de Entrega",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"21.1",t:"Possui indicador de OTD (On-Time Delivery) com meta estabelecida e histórico disponível ao cliente?"},
+    {c:"21.2",t:"Comunica proativamente desvios de prazo e fornece plano de recuperação (Recovery Plan)?"},
+    {c:"21.3",t:"Possui capacidade de atendimento emergencial/pedidos hot-shot fora do prazo padrão?"},
+    {c:"21.4",t:"Possui sistemática de embalagem, marcação e identificação adequadas para transporte rodoviário/marítimo de longa distância?"},
+    {c:"21.5",t:"Emite documentação fiscal e técnica completa (NF, CoA, Databook, Romaneio) junto com a expedição?"}
+  ]},
+  {id:"22",categoria:"Ensaios Destrutivos",grupo:"ESCOPO",bloco_nota:"TECNICA",perguntas:[
+    {c:"22.1",t:"O laboratório é acreditado pelo INMETRO (CGCRE) ou organismo equivalente internacionalmente reconhecido (ILAC MRA)?"},
+    {c:"22.2",t:"O escopo de acreditação cobre os métodos/normas aplicáveis (ASTM E8/E8M, E23, E10/E18/E92, E290, ISO 6892, 148, 6506/6507/6508 etc.)?"},
+    {c:"22.3",t:"Possui sistema de gestão da qualidade laboratorial implementado conforme ISO/IEC 17025?"},
+    {c:"22.4",t:"O pessoal técnico é qualificado, treinado e com evidência de competência documentada para cada tipo de ensaio?"},
+    {c:"22.5",t:"Possui procedimentos documentados e aprovados para cada tipo de ensaio destrutivo, com referência às normas vigentes?"},
+    {c:"22.6",t:"Realiza ensaios de tração (LRT, LE e Alongamento) conforme ASTM E8/E8M ou ISO 6892-1, com corpos de prova usinados conforme a norma?"},
+    {c:"22.7",t:"A máquina de tração possui calibração rastreável vigente conforme ISO 7500-1 ou ASTM E4, com incerteza documentada?"},
+    {c:"22.8",t:"Realiza ensaios de impacto Charpy (energia absorvida e expansão lateral) conforme ASTM E23 ou ISO 148-1, inclusive temperaturas negativas quando requerido?"},
+    {c:"22.9",t:"O equipamento Charpy é verificado com corpos de prova de referência certificados (CVN) e possui calibração rastreável vigente?"},
+    {c:"22.10",t:"Realiza ensaios de dobramento (Guided Bend Test) conforme ASTM E290, API 1104 ou norma aplicável, com controle de ângulo e diâmetro do punção?"},
+    {c:"22.11",t:"Realiza ensaios de dureza pelos métodos aplicáveis (Brinell E10/ISO 6506; Rockwell E18/ISO 6508; Vickers E92/ISO 6507) com equipamentos calibrados e rastreados?"},
+    {c:"22.12",t:"Os durômetros são verificados com blocos padrão certificados antes de cada sequência de ensaios, com registros documentados?"},
+    {c:"22.13",t:"Possui capacidade para ensaios de fluência (Creep) e ruptura por fluência conforme ASTM E139 ou ISO 204, com controle de temperatura (±1°C) e carga?"},
+    {c:"22.14",t:"Possui rastreabilidade completa dos corpos de prova ao material de origem (heat number, lote, posição), mantida durante todo o ensaio?"},
+    {c:"22.15",t:"Os relatórios de ensaio são emitidos conforme ISO/IEC 17025 ou contêm identificação do cliente, material, norma, resultados, critério de aceitação, conclusão e assinatura do responsável técnico?"}
+  ]}
+];
+
+/* ================================================================
+   ESCOPOS (fallback embutido). Você substituirá por escopos.csv.
+   tipo: "produto" carrega Produção Geral; "servico" não carrega.
+   blocos: ids de BANCO_PERGUNTAS carregados por este escopo.
+   ================================================================ */
+let ESCOPOS = [
+  {nome:"Matéria-Prima Metálica",        tipo:"produto", blocos:["10"]},
+  {nome:"Tratamento Térmico",            tipo:"produto", blocos:["11"]},
+  {nome:"Usinagem",                      tipo:"produto", blocos:["8"]},
+  {nome:"Soldagem",                      tipo:"produto", blocos:["6"]},
+  {nome:"Pintura e Hidrojateamento",     tipo:"produto", blocos:["7"]},
+  {nome:"Ferramentas de Corte e Abrasivos",tipo:"produto",blocos:["13"]},
+  {nome:"Tintas e Revestimentos",        tipo:"produto", blocos:["14"]},
+  {nome:"Produtos Químicos",             tipo:"produto", blocos:["15"]},
+  {nome:"Elastômeros e Vedações",        tipo:"produto", blocos:["16"]},
+  {nome:"Molas",                         tipo:"produto", blocos:["17"]},
+  {nome:"Instrumentos de Medição",       tipo:"produto", blocos:["19"]},
+  {nome:"Laboratório de Calibração",     tipo:"servico", blocos:["9"]},
+  {nome:"Ensaios Não Destrutivos (END)", tipo:"servico", blocos:["18"]},
+  {nome:"Ensaios Destrutivos",           tipo:"servico", blocos:["22"]},
+  {nome:"SaaS / Software e Serviços de TI",tipo:"servico",blocos:["20"]},
+  {nome:"Logística e Transporte",        tipo:"servico", blocos:["21"]}
+];
+
+/* ================================================================
+   ESTADO
+   ================================================================ */
+let blocosMap = {};                 // id -> bloco
+let escoposSel = [];                // nomes de escopos selecionados
+let respostas = {};                 // qid -> {status, comentario, file}
+let arquivoCNPJ = null, arquivoCert = null;
+let protocolo = "";
+const PROD_GERAL_ID = "5";          // id do bloco "Produção Geral"
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function qid(blocoId,c){return 'q_'+blocoId+'_'+String(c).replace(/\./g,'_');}
+function showToast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(type?' '+type:'');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),4000);}
+function faixaDe(score){for(const f of FAIXAS){if(score>=f.min&&score<=f.max)return f;}return FAIXAS[0];}
+function fmtNota(n){return n==null?'—':(Math.round(n*10)/10).toString().replace('.',',');}
+
+function maskCNPJ(el){let v=el.value.replace(/\D/g,'').slice(0,14);
+  v=v.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3')
+     .replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d)/,'$1-$2');el.value=v;}
+function maskTel(el){let v=el.value.replace(/\D/g,'').slice(0,11);
+  if(v.length>10)v=v.replace(/^(\d{2})(\d{5})(\d{4}).*/,'($1) $2-$3');
+  else if(v.length>6)v=v.replace(/^(\d{2})(\d{4})(\d{0,4}).*/,'($1) $2-$3');
+  else if(v.length>2)v=v.replace(/^(\d{2})(\d{0,5})/,'($1) $2');
+  else if(v.length>0)v=v.replace(/^(\d{0,2})/,'($1');el.value=v;}
+
+/* ================================================================
+   INICIALIZAÇÃO
+   ================================================================ */
+window.onload = async () => {
+  document.getElementById('docRef').textContent = CONFIG.DOC_REF;
+  gerarProtocolo();
+  await carregarEscoposExternos();
+  await carregarPerguntasExternas();
+  BANCO_PERGUNTAS.forEach(b=>blocosMap[b.id]=b);
+  renderCNPJUpload(); renderCertUpload();
+  renderEscopos(); renderPerguntas(); atualizar();
+  carregarLogo();
+};
+
+function gerarProtocolo(){
+  const d=new Date(), p=n=>String(n).padStart(2,'0');
+  protocolo = p(d.getFullYear())+p(d.getMonth()+1)+p(d.getDate())+'-'+String(Math.floor(Math.random()*9000)+1000);
+  atualizarProtocolo();
+}
+function atualizarProtocolo(){document.getElementById('hdrProtocolo').textContent='AF-'+protocolo;}
+
+/* ----- carga opcional de CSV externos (sobrepõe o fallback) ----- */
+async function carregarEscoposExternos(){
+  if(!CONFIG.ESCOPOS_CSV_URL) return;
+  try{
+    const txt=await (await fetch(CONFIG.ESCOPOS_CSV_URL)).text();
+    // colunas: nome;tipo;blocos(separados por vírgula)
+    const linhas=txt.split('\n').map(l=>l.trim()).filter(Boolean);
+    const out=[];
+    linhas.forEach((l,i)=>{
+      const c=l.split(';'); if(i===0 && /nome/i.test(c[0])) return;
+      const nome=(c[0]||'').trim(); if(!nome) return;
+      out.push({nome, tipo:((c[1]||'produto').trim().toLowerCase()==='servico'?'servico':'produto'),
+                blocos:(c[2]||'').split(',').map(x=>x.trim()).filter(Boolean)});
+    });
+    if(out.length) ESCOPOS=out;
+  }catch(e){/* mantém fallback */}
+}
+async function carregarPerguntasExternas(){
+  if(!CONFIG.PERGUNTAS_CSV_URL) return;
+  try{
+    const txt=await (await fetch(CONFIG.PERGUNTAS_CSV_URL)).text();
+    // colunas: bloco_id;categoria;grupo;bloco_nota;escopo;codigo;texto
+    const linhas=txt.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim());
+    const mapa={};
+    linhas.forEach((l,i)=>{
+      const c=l.split(';'); if(i===0 && /bloco_id/i.test(c[0])) return;
+      const id=(c[0]||'').trim(); if(!id) return;
+      if(!mapa[id]) mapa[id]={id,categoria:(c[1]||'').trim(),grupo:(c[2]||'ESCOPO').trim(),bloco_nota:(c[3]||'TECNICA').trim(),perguntas:[]};
+      mapa[id].perguntas.push({c:(c[5]||'').trim(),t:(c[6]||'').trim()});
+    });
+    const arr=Object.values(mapa);
+    if(arr.length){BANCO_PERGUNTAS.length=0;arr.forEach(b=>BANCO_PERGUNTAS.push(b));}
+  }catch(e){/* mantém fallback */}
+}
+
+function carregarLogo(){
+  if(window.LOGO_B64||!CONFIG.LOGO_URL) return;
+  const img=new Image(); img.crossOrigin='anonymous';
+  img.onload=function(){try{const cv=document.createElement('canvas');cv.width=img.naturalWidth;cv.height=img.naturalHeight;cv.getContext('2d').drawImage(img,0,0);window.LOGO_B64=cv.toDataURL('image/png');}catch(e){}};
+  img.src=CONFIG.LOGO_URL;
+}
+
+/* ================================================================
+   LGPD / CERTIFICAÇÃO
+   ================================================================ */
+function toggleLGPD(){
+  const ok=document.getElementById('lgpdCheck').checked;
+  document.getElementById('conteudo').classList.toggle('locked',!ok);
+  document.getElementById('lgpdBox').classList.toggle('ok',ok);
+}
+function toggleCert(){
+  const sim=document.getElementById('cert_sim').checked;
+  document.getElementById('certUploadWrap').style.display=sim?'block':'none';
+  if(!sim){arquivoCert=null;renderCertUpload();}
+}
+
+/* ================================================================
+   UPLOADS (componente reutilizável)
+   ================================================================ */
+function fileWidget(containerId, accept, getFile, onPick, onClear){
+  const cont=document.getElementById(containerId); if(!cont) return;
+  const f=getFile();
+  cont.innerHTML =
+    '<div class="file-row">'
+    + '<label class="file-btn"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>'
+    + (f?'Trocar arquivo':'Selecionar arquivo')
+    + '<input type="file" accept="'+accept+'" style="display:none" onchange="'+onPick+'(this)"></label>'
+    + (f
+        ? '<span class="file-name"><span class="ok-dot"></span>'+esc(f.name)+'<span class="x" onclick="'+onClear+'()">×</span></span>'
+        : '<span class="file-name empty">Nenhum arquivo</span>')
+    + '</div>';
+}
+function renderCNPJUpload(){fileWidget('cnpjUpload',ACCEPT_CNPJ,()=>arquivoCNPJ,'pickCNPJ','clearCNPJ');}
+function renderCertUpload(){fileWidget('certUpload',ACCEPT_EVID,()=>arquivoCert,'pickCert','clearCert');}
+function pickCNPJ(i){arquivoCNPJ=i.files[0]||null;renderCNPJUpload();}
+function clearCNPJ(){arquivoCNPJ=null;renderCNPJUpload();}
+function pickCert(i){arquivoCert=i.files[0]||null;renderCertUpload();}
+function clearCert(){arquivoCert=null;renderCertUpload();}
+
+/* ================================================================
+   ESCOPOS
+   ================================================================ */
+function renderEscopos(){
+  const grid=document.getElementById('escopoGrid');
+  grid.innerHTML=ESCOPOS.map((e,i)=>{
+    const sel=escoposSel.includes(e.nome);
+    return '<label class="escopo-chip'+(sel?' sel':'')+'" id="chip_'+i+'">'
+      +'<input type="checkbox" '+(sel?'checked':'')+' onchange="toggleEscopo('+i+',this.checked)">'
+      +'<span class="esc-name">'+esc(e.nome)+'</span>'
+      +'<span class="esc-tag '+e.tipo+'">'+(e.tipo==='produto'?'Produto':'Serviço')+'</span></label>';
+  }).join('');
+  document.getElementById('escCount').textContent=escoposSel.length+' selecionado'+(escoposSel.length===1?'':'s');
+}
+function toggleEscopo(i,checked){
+  const nome=ESCOPOS[i].nome;
+  if(checked){if(!escoposSel.includes(nome))escoposSel.push(nome);}
+  else{escoposSel=escoposSel.filter(x=>x!==nome);}
+  document.getElementById('chip_'+i).classList.toggle('sel',checked);
+  document.getElementById('escCount').textContent=escoposSel.length+' selecionado'+(escoposSel.length===1?'':'s');
+  renderPerguntas(); atualizar();
+}
+
+/* ----- determina os blocos visíveis conforme regras ----- */
+function blocosVisiveis(){
+  const ids=[];
+  // 1) SGQ sempre
+  BANCO_PERGUNTAS.filter(b=>b.grupo==='SGQ').forEach(b=>ids.push(b.id));
+  // 2) Produção Geral se houver ao menos um escopo do tipo "produto"
+  const temProduto=escoposSel.some(n=>{const e=ESCOPOS.find(x=>x.nome===n);return e&&e.tipo==='produto';});
+  if(temProduto && blocosMap[PROD_GERAL_ID]) ids.push(PROD_GERAL_ID);
+  // 3) blocos dos escopos selecionados
+  escoposSel.forEach(n=>{const e=ESCOPOS.find(x=>x.nome===n);if(e)e.blocos.forEach(bid=>{if(blocosMap[bid]&&!ids.includes(bid))ids.push(bid);});});
+  // mantém a ordem do banco
+  return BANCO_PERGUNTAS.filter(b=>ids.includes(b.id));
+}
+
+/* ================================================================
+   RENDER DO QUESTIONÁRIO
+   ================================================================ */
+function renderPerguntas(){
+  const cont=document.getElementById('questionario');
+  const blocos=blocosVisiveis();
+  if(!blocos.length){
+    cont.innerHTML='<div class="card"><div class="card-body"><div class="empty-state">Selecione ao menos um escopo acima para carregar o questionário. As perguntas de SGQ aparecerão automaticamente.</div></div></div>';
+    return;
+  }
+  let html='';
+  blocos.forEach(b=>{
+    const tag = b.bloco_nota==='SGQ'
+      ? '<span class="bloco-tag sgq">SGQ</span>'
+      : '<span class="bloco-tag tec">Técnica</span>';
+    const sub = b.grupo==='PRODUCAO_GERAL'
+      ? '<div class="bloco-sub">Carregado automaticamente para fornecedores de produtos/processos produtivos.</div>' : '';
+    html+='<div class="card"><div class="card-head">'
+      +'<svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'
+      +'<h2>'+esc(b.id+' — '+b.categoria)+'</h2>'+tag+'</div><div class="card-body">'+sub;
+    b.perguntas.forEach(p=>{html+=renderQ(b,p);});
+    html+='</div></div>';
+  });
+  cont.innerHTML=html;
+  // restaura estado visual (status/comentário) e badges
+  blocos.forEach(b=>b.perguntas.forEach(p=>atualizarQ(qid(b.id,p.c))));
+}
+
+function renderQ(b,p){
+  const id=qid(b.id,p.c);
+  const r=respostas[id]||{};
+  const name='st_'+id;
+  const pill=(cls,val,lbl)=>{
+    const rid=name+'_'+val.replace(/[^a-zA-Z]/g,'');
+    return '<input type="radio" class="st-radio '+cls+'" name="'+name+'" id="'+rid+'" value="'+val+'" '
+      +(r.status===val?'checked':'')+' onchange="setStatus(\''+id+'\',\''+val+'\')">'
+      +'<label class="st-label" for="'+rid+'">'+lbl+'</label>';
+  };
+  const fileName = r.file
+    ? '<span class="file-name"><span class="ok-dot"></span>'+esc(r.file.name)+'<span class="x" onclick="clearEvid(\''+id+'\')">×</span></span>'
+    : '<span class="file-name empty">Sem evidência anexada</span>';
+  return '<div class="q-block" id="blk_'+id+'">'
+    +'<div class="q-top"><span class="q-code">'+esc(p.c)+'</span>'
+    +'<span class="q-text">'+esc(p.t)+'</span>'
+    +'<span class="q-score" id="score_'+id+'">—</span></div>'
+    +'<div class="status-pills">'+pill('st-conf','Conforme','Conforme')+pill('st-reg','Regular','Regular')+pill('st-nc','Não Conforme','Não Conforme')+'</div>'
+    +'<div class="q-evid"><div class="file-row">'
+    +'<label class="file-btn"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Evidência'
+    +'<input type="file" accept="'+ACCEPT_EVID+'" style="display:none" onchange="setEvid(\''+id+'\',this)"></label>'
+    +fileName+'</div></div>'
+    +'<div class="q-com"><textarea placeholder="Observações desta pergunta (opcional)..." oninput="setCom(\''+id+'\',this.value)">'+esc(r.comentario||'')+'</textarea></div>'
+    +'<div class="q-warn" id="warn_'+id+'">⚠ Marcado como “Conforme” sem evidência anexada — reclassificado para “Regular” (75 pts) no cálculo.</div>'
+    +'</div>';
+}
+
+function ensure(id){if(!respostas[id])respostas[id]={status:'',comentario:'',file:null};return respostas[id];}
+function setStatus(id,v){ensure(id).status=v;atualizarQ(id);atualizar();}
+function setCom(id,v){ensure(id).comentario=v;}
+function setEvid(id,inp){ensure(id).file=inp.files[0]||null;atualizarQ(id);atualizar();}
+function clearEvid(id){if(respostas[id])respostas[id].file=null;
+  const blk=document.getElementById('blk_'+id);
+  if(blk){const fr=blk.querySelector('.q-evid .file-row');
+    fr.querySelector('.file-name').outerHTML='<span class="file-name empty">Sem evidência anexada</span>';}
+  atualizarQ(id);atualizar();}
+
+/* avaliação efetiva de uma pergunta (aplica regra de evidência) */
+function efetivo(id){
+  const r=respostas[id]; if(!r||!r.status) return null;
+  if(r.status==='Conforme'){
+    if(!r.file) return {status:'Regular',pts:SCORING.REGULAR,reclass:true};
+    return {status:'Conforme',pts:SCORING.CONFORME,reclass:false};
+  }
+  if(r.status==='Regular') return {status:'Regular',pts:SCORING.REGULAR,reclass:false};
+  return {status:'Não Conforme',pts:SCORING.NC,reclass:false};
+}
+
+function atualizarQ(id){
+  const e=efetivo(id);
+  const score=document.getElementById('score_'+id);
+  const warn=document.getElementById('warn_'+id);
+  const blk=document.getElementById('blk_'+id);
+  if(!score) return;
+  if(!e){score.textContent='—';score.className='q-score';if(warn)warn.classList.remove('show');if(blk)blk.className='q-block';return;}
+  score.textContent=e.pts;
+  score.className='q-score '+(e.pts===100?'c':e.pts===75?'r':'n');
+  if(warn) warn.classList.toggle('show',!!e.reclass);
+  if(blk) blk.className='q-block '+(e.pts===100?'done':e.pts===75?'reg':'nc');
+}
+
+/* ================================================================
+   CÁLCULO + INDICADORES EM TEMPO REAL
+   ================================================================ */
+function calcular(){
+  const blocos=blocosVisiveis();
+  let sgq=[],tec=[],total=0,respondidas=0;
+  blocos.forEach(b=>b.perguntas.forEach(p=>{
+    total++; const id=qid(b.id,p.c); const e=efetivo(id);
+    if(e){respondidas++;(b.bloco_nota==='SGQ'?sgq:tec).push(e.pts);}
+  }));
+  const media=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  const nSGQ=media(sgq), nTec=media(tec);
+  let nFinal=null;
+  if(nSGQ!=null&&nTec!=null) nFinal=SCORING.PESO_SGQ*nSGQ+SCORING.PESO_TECNICA*nTec;
+  else if(nSGQ!=null) nFinal=nSGQ; else if(nTec!=null) nFinal=nTec;
+  return {nSGQ,nTec,nFinal,total,respondidas,pct:total?respondidas/total*100:0};
+}
+
+function atualizar(){
+  const r=calcular();
+  // faixa fixa (tempo real)
+  const strip=document.getElementById('rtStrip');
+  strip.classList.toggle('on', r.total>0);
+  const sc = r.nFinal==null?0:r.nFinal;
+  const f=faixaDe(sc);
+  const fill=document.getElementById('rtFill');
+  fill.style.width=sc+'%'; fill.style.background=f.cor;
+  document.getElementById('rtNum').textContent=r.nFinal==null?'—':Math.round(sc)+'%';
+  const cls=document.getElementById('rtCls');
+  cls.textContent=r.nFinal==null?'—':f.label;
+  cls.style.background=r.nFinal==null?'var(--surface2)':f.bg;
+  cls.style.color=r.nFinal==null?'var(--muted)':f.cor;
+  document.getElementById('rtProg').textContent=r.respondidas+' / '+r.total+' respondidas';
+
+  // card consolidado
+  document.getElementById('resSGQ').textContent=fmtNota(r.nSGQ);
+  document.getElementById('resTec').textContent=fmtNota(r.nTec);
+  document.getElementById('resFinal').textContent=fmtNota(r.nFinal);
+  const rc=document.getElementById('resClass'), rct=document.getElementById('resClassTxt');
+  if(r.nFinal==null){
+    rc.style.background='var(--surface2)';rc.style.color='var(--muted)';rc.style.borderColor='var(--border)';
+    rc.querySelector('.dot').style.background='var(--muted)';
+    rct.textContent='Aguardando respostas… ('+r.respondidas+'/'+r.total+')';
+  }else{
+    rc.style.background=f.bg;rc.style.color=f.cor;rc.style.borderColor=f.cor;
+    rc.querySelector('.dot').style.background=f.cor;
+    rct.textContent=f.label+' — '+r.respondidas+'/'+r.total+' respondidas';
+  }
+}
+
+/* ================================================================
+   VALIDAÇÃO + COLETA
+   ================================================================ */
+function val(id){return (document.getElementById(id).value||'').trim();}
+function validar(){
+  const erros=[];
+  if(!document.getElementById('lgpdCheck').checked) erros.push('Aceite de privacidade (LGPD)');
+  [['razaoSocial','Razão Social'],['nomeFantasia','Nome Fantasia'],['cnpj','CNPJ'],['endereco','Endereço'],
+   ['cidade','Cidade'],['estado','Estado (UF)'],['responsavel','Responsável'],['cargo','Cargo'],
+   ['email','E-mail'],['telefone','Telefone']].forEach(([id,lbl])=>{if(!val(id))erros.push(lbl);});
+  if(!arquivoCNPJ) erros.push('Cartão CNPJ');
+  const cert=document.querySelector('input[name="certSGQ"]:checked');
+  if(!cert) erros.push('Possui certificação de SGQ? (Sim/Não)');
+  else if(cert.value==='Sim'&&!arquivoCert) erros.push('Certificado de SGQ');
+  if(!escoposSel.length) erros.push('Ao menos um escopo de fornecimento');
+  // todas as perguntas visíveis respondidas
+  const blocos=blocosVisiveis(); let pend=0;
+  blocos.forEach(b=>b.perguntas.forEach(p=>{if(!efetivo(qid(b.id,p.c)))pend++;}));
+  if(pend>0) erros.push(pend+' pergunta(s) sem status');
+  return erros;
+}
+
+function coletar(){
+  const r=calcular();
+  const f=faixaDe(r.nFinal==null?0:r.nFinal);
+  const cert=document.querySelector('input[name="certSGQ"]:checked');
+  const blocos=blocosVisiveis();
+  const respList=[];
+  blocos.forEach(b=>b.perguntas.forEach(p=>{
+    const id=qid(b.id,p.c), st=respostas[id]||{}, e=efetivo(id);
+    respList.push({bloco:b.id+' - '+b.categoria, bloco_nota:b.bloco_nota, codigo:p.c, texto:p.t,
+      status_informado:st.status||'', status_efetivo:e?e.status:'', pontuacao:e?e.pts:null,
+      reclassificado:e?!!e.reclass:false, tem_evidencia:!!(st.file), comentario:st.comentario||''});
+  }));
+  return {
+    protocolo:'AF-'+protocolo,
+    documento_ref:CONFIG.DOC_REF,
+    data_hora:new Date().toLocaleString('pt-BR'),
+    fornecedor:{
+      razao_social:val('razaoSocial'), nome_fantasia:val('nomeFantasia'), cnpj:val('cnpj'),
+      cnae:"", // preenchido posteriormente a partir do Cartão CNPJ (cenário Make)
+      endereco:val('endereco'), cidade:val('cidade'), estado:val('estado'),
+      responsavel:val('responsavel'), cargo:val('cargo'), email:val('email'), telefone:val('telefone')
+    },
+    certificacao_sgq:{ possui: cert?cert.value:'' },
+    escopos:escoposSel.slice(),
+    resultados:{ nota_sgq:r.nSGQ, nota_tecnica:r.nTec, nota_final:r.nFinal==null?null:Math.round(r.nFinal*100)/100, classificacao:f.label },
+    respostas:respList
+  };
+}
+
+/* arquivo -> base64 (para o payload do Make) */
+function toB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
+async function coletarArquivos(pdfBlob){
+  const arr=[];
+  const push=async(campo,file)=>{if(file)arr.push({campo,nome:file.name,tipo:file.type||'application/octet-stream',base64:await toB64(file)});};
+  await push('Cartão CNPJ',arquivoCNPJ);
+  await push('Certificado SGQ',arquivoCert);
+  const blocos=blocosVisiveis();
+  for(const b of blocos)for(const p of b.perguntas){const r=respostas[qid(b.id,p.c)];if(r&&r.file)await push('Evidência '+p.c,r.file);}
+  if(pdfBlob){const b64=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result.split(',')[1]);fr.readAsDataURL(pdfBlob);});
+    arr.push({campo:'Relatório PDF',nome:'Autoavaliacao-AF-'+protocolo+'.pdf',tipo:'application/pdf',base64:b64});}
+  return arr;
+}
+
+/* ================================================================
+   ENVIO
+   ================================================================ */
+async function enviar(){
+  const erros=validar();
+  if(erros.length){showToast('Pendências:\n• '+erros.slice(0,6).join('\n• ')+(erros.length>6?'\n  …e mais '+(erros.length-6):''),'error');return;}
+  const btn=document.getElementById('btnEnviar'); btn.disabled=true; btn.textContent='⏳ Enviando...';
+  try{
+    const pdfBlob=await gerarPDF(true); // gera e baixa, retorna blob
+    const dados=coletar();
+    if(CONFIG.WEBHOOK_URL){
+      dados.arquivos=await coletarArquivos(pdfBlob);
+      await fetch(CONFIG.WEBHOOK_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(dados)});
+      showToast('Autoavaliação enviada com sucesso!','success');
+    }else{
+      showToast('PDF gerado. (Webhook do Make não configurado em CONFIG.WEBHOOK_URL)','success');
+    }
+  }catch(e){showToast('Erro ao enviar: '+e,'error');}
+  finally{btn.disabled=false; btn.textContent='⬆ Enviar Autoavaliação';}
+}
+
+/* ================================================================
+   RELATÓRIO PDF (mesmo estilo do formulário existente)
+   Não incorpora anexos — apenas perguntas, respostas, comentários
+   e resultados.
+   ================================================================ */
+async function gerarPDF(returnBlob){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const W=210,H=297,ML=10,MR=10,CW=W-ML-MR;
+  const DARK=[26,18,16],GRAY=[135,130,125],RED=[192,57,43],LGRAY=[224,219,213];
+  const d=coletar();
+  const f=faixaDe(d.resultados.nota_final==null?0:d.resultados.nota_final);
+  const logoB64=window.LOGO_B64||'';
+  const setC=c=>doc.setTextColor(...c), setF=c=>doc.setFillColor(...c), setD=c=>doc.setDrawColor(...c);
+
+  function footer(){const pg=doc.internal.getCurrentPageInfo().pageNumber,tot=doc.internal.getNumberOfPages();
+    doc.setFontSize(6.5);doc.setFont('helvetica','italic');setC([170,165,160]);
+    doc.text('Perpec Oilfield Supply  •  '+CONFIG.DOC_REF+'  •  Autoavaliação de Fornecedor',W/2,H-6,{align:'center'});
+    doc.setFont('helvetica','normal');doc.text('Pág. '+pg+' / '+tot,W-MR,H-6,{align:'right'});}
+  function header(){
+    if(logoB64){try{doc.addImage(logoB64,'PNG',ML,3,38,10);}catch(e){}}
+    setD(RED);doc.setLineWidth(0.8);doc.line(0,18,W,18);
+    doc.setFontSize(13);doc.setFont('helvetica','bold');setC(DARK);doc.text('Autoavaliação de Fornecedor',W-MR,9,{align:'right'});
+    doc.setFontSize(7.5);doc.setFont('helvetica','normal');setC(GRAY);doc.text(d.protocolo+'  •  '+d.data_hora,W-MR,15,{align:'right'});
+  }
+  header();
+  let y=24;
+
+  // ---- Identificação do fornecedor ----
+  function bloco(titulo,linhas){
+    doc.setFontSize(8);doc.setFont('helvetica','bold');setC(RED);doc.text(titulo.toUpperCase(),ML,y);y+=2;
+    setD(LGRAY);doc.setLineWidth(0.3);doc.line(ML,y,ML+CW,y);y+=4;
+    doc.setFontSize(9);
+    linhas.forEach(([k,v])=>{
+      doc.setFont('helvetica','bold');setC(GRAY);doc.text(k,ML,y);
+      doc.setFont('helvetica','normal');setC(DARK);
+      const tx=doc.splitTextToSize(String(v||'—'),CW-42);doc.text(tx,ML+42,y);
+      y+=Math.max(5,tx.length*4.6);
+    });
+    y+=3;
+  }
+  const fo=d.fornecedor;
+  bloco('Identificação do Fornecedor',[
+    ['Razão Social:',fo.razao_social],['Nome Fantasia:',fo.nome_fantasia],['CNPJ:',fo.cnpj],
+    ['Endereço:',fo.endereco+' — '+fo.cidade+'/'+fo.estado],
+    ['Responsável:',fo.responsavel+'  ('+fo.cargo+')'],['Contato:',fo.email+'  •  '+fo.telefone],
+    ['Certificação SGQ:',d.certificacao_sgq.possui],['Escopos:',d.escopos.join('; ')]
+  ]);
+
+  // ---- Resultado consolidado (destaque) ----
+  doc.setFontSize(8);doc.setFont('helvetica','bold');setC(RED);doc.text('RESULTADO DA AVALIAÇÃO',ML,y);y+=3;
+  const bw=(CW-12)/3, tiles=[['NOTA SGQ (50%)',fmtNota(d.resultados.nota_sgq)],['NOTA TÉCNICA (50%)',fmtNota(d.resultados.nota_tecnica)],['NOTA FINAL',fmtNota(d.resultados.nota_final)]];
+  tiles.forEach((t,i)=>{const x=ML+i*(bw+6);const isFinal=i===2;
+    setF(isFinal?DARK:[248,247,245]);setD(LGRAY);doc.setLineWidth(0.3);doc.roundedRect(x,y,bw,18,2,2,'FD');
+    doc.setFontSize(6.5);doc.setFont('helvetica','bold');setC(isFinal?[160,144,144]:GRAY);doc.text(t[0],x+bw/2,y+5,{align:'center'});
+    doc.setFontSize(16);doc.setFont('helvetica','bold');setC(isFinal?[255,255,255]:DARK);doc.text(t[1],x+bw/2,y+14,{align:'center'});});
+  y+=22;
+  const fc=f.cor;setF([fc[0]*0.07+243,fc[1]*0.07+243,fc[2]*0.07+243]);setD(fc);doc.setLineWidth(0.5);
+  doc.roundedRect(ML,y,CW,11,2,2,'FD');
+  doc.setFontSize(11);doc.setFont('helvetica','bold');setC(fc);doc.text('Classificação Final: '+d.resultados.classificacao,W/2,y+7,{align:'center'});
+  y+=16;
+
+  // ---- Tabelas por bloco ----
+  const byBloco={};
+  d.respostas.forEach(r=>{(byBloco[r.bloco]=byBloco[r.bloco]||[]).push(r);});
+  Object.keys(byBloco).forEach(bk=>{
+    const rows=byBloco[bk].map(r=>[r.codigo,r.texto,r.status_efetivo+(r.reclassificado?' *':''),r.pontuacao==null?'—':String(r.pontuacao),r.comentario||'']);
+    doc.autoTable({
+      startY:y+2,margin:{left:ML,right:MR},
+      head:[[ {content:bk,colSpan:5,styles:{halign:'left',fillColor:DARK,textColor:[212,200,196],fontSize:7.5}} ],
+            ['Cód.','Pergunta','Status','Pts','Comentário']],
+      body:rows,
+      styles:{fontSize:7,cellPadding:1.6,lineColor:LGRAY,lineWidth:0.1,valign:'top',overflow:'linebreak'},
+      headStyles:{fillColor:[240,237,232],textColor:GRAY,fontStyle:'bold',fontSize:6.8},
+      columnStyles:{0:{cellWidth:11,halign:'center'},1:{cellWidth:88},2:{cellWidth:24,halign:'center'},3:{cellWidth:10,halign:'center',fontStyle:'bold'},4:{cellWidth:CW-11-88-24-10}},
+      didParseCell:hook=>{
+        if(hook.section==='body'&&hook.column.index===2){
+          const v=hook.cell.raw||'';
+          if(v.indexOf('Conforme')===0)hook.cell.styles.textColor=[46,125,50];
+          else if(v.indexOf('Regular')===0)hook.cell.styles.textColor=[183,121,31];
+          else if(v.indexOf('Não Conforme')===0)hook.cell.styles.textColor=[192,57,43];
+        }
+        if(hook.section==='body'&&hook.column.index===3){
+          const p=hook.cell.raw;
+          if(p==='100')hook.cell.styles.textColor=[46,125,50];
+          else if(p==='75')hook.cell.styles.textColor=[183,121,31];
+          else if(p==='0')hook.cell.styles.textColor=[192,57,43];
+        }
+      },
+      didDrawPage:()=>{footer();}
+    });
+    y=doc.lastAutoTable.finalY+3;
+  });
+  // legenda reclassificação
+  doc.setFontSize(6.5);doc.setFont('helvetica','italic');setC(GRAY);
+  if(y>H-16){doc.addPage();y=20;}
+  doc.text('* Reclassificado para “Regular” por ausência de evidência anexada (Conforme sem evidência = 75 pts).',ML,y+3);
+
+  const tot=doc.internal.getNumberOfPages();for(let i=1;i<=tot;i++){doc.setPage(i);footer();}
+  const nome='Autoavaliacao-AF-'+protocolo+'.pdf';
+  if(returnBlob){doc.save(nome);return doc.output('blob');}
+  doc.save(nome);
+}
+
+/* ================================================================
+   LIMPAR
+   ================================================================ */
+function limpar(){
+  if(!confirm('Limpar todo o formulário?'))return;
+  respostas={}; escoposSel=[]; arquivoCNPJ=null; arquivoCert=null;
+  document.querySelectorAll('#conteudo input[type="text"],#conteudo input[type="email"]').forEach(el=>el.value='');
+  document.querySelectorAll('input[name="certSGQ"]').forEach(el=>el.checked=false);
+  document.getElementById('certUploadWrap').style.display='none';
+  renderCNPJUpload(); renderCertUpload(); renderEscopos(); renderPerguntas(); atualizar();
+  showToast('Formulário limpo.');
+}
+</script>
+</body>
+</html>
