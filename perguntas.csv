@@ -1,82 +1,53 @@
 bloco_id;categoria;grupo;bloco_nota;escopo;codigo;texto
-6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.1;Possui EPS/WPS qualificada conforme norma aplicável?
-6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.2;Possui soldadores qualificados e com certificados vigentes?
-6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.3;Possui controle de consumíveis de soldagem?
-6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.4;Possui rastreabilidade entre soldador, junta soldada e procedimento aplicado?
-6;Produção — Soldagem;ESCOPO;TECNICA;SOLD;6.5;Realiza inspeções e registros rastreáveis das soldas executadas?
 
-7;Produção — Pintura e Hidrojateamento;ESCOPO;TECNICA;PINT;7.1;Possui procedimento documentado para preparação de superfície?
-7;Produção — Pintura e Hidrojateamento;ESCOPO;TECNICA;PINT;7.2;Existe área específica para pintura isenta de contaminantes?
-7;Produção — Pintura e Hidrojateamento;ESCOPO;TECNICA;PINT;7.3;Possui controle de temperatura e umidade durante a aplicação?
-7;Produção — Pintura e Hidrojateamento;ESCOPO;TECNICA;PINT;7.4;Possui inspetor qualificado para acompanhamento do processo?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.1;Existe Manual da Qualidade?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.2;Existe Política e Objetivos da Qualidade?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.3;Possui listagem de Normas/Procedimentos internos?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.4;Possui processo de comunicação interna e externa?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.5;Possui funções, responsabilidades e autoridades definidas em relação ao SGQ?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.6;Disponibilidade de recursos essenciais para definição, implementação, manutenção e melhoria do SGQ?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.7;Possui processo de controle de competência e treinamento?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.8;Disponibiliza, administra e mantém ambiente de trabalho adequado?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.9;Possui processo de controle de documentos?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.10;Possui processo de controle de registros?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.11;Possui requisitos do cliente, legais e outros requisitos definidos?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.12;Identifica e planeja processos e documentos necessários para realização do produto ou serviço?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.13;Identifica e realiza gestão dos riscos relacionados ao produto ou serviço?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.14;Possui controle sobre propriedade do cliente?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.15;Possui processo de gestão de estoque e preservação de produtos?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.16;Possui controle de não conformidades, ações corretivas e preventivas?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.17;Possui processo de gestão da mudança?
+1;Gestão da Qualidade - Organização do Fornecedor;SGQ;SGQ;GERAL;1.18;Realiza medição, análise e melhoria do SGQ?
 
-8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.1;Existem tornos e centros de usinagem compatíveis com a demanda?
-8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.2;Possui fluxo produtivo definido para fabricação, inspeção e expedição?
-8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.3;Possui plano de calibração vigente para instrumentos de medição?
-8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.4;Possui instrumentos adequados para inspeção dimensional e roscas API?
-8;Produção — Usinagem;ESCOPO;TECNICA;USIN;8.5;Mantém registros rastreáveis das inspeções realizadas?
+2;Gestão da Qualidade - Suprimentos;SGQ;SGQ;GERAL;2.1;Existe sistemática para seleção, qualificação e avaliação de fornecedores?
+2;Gestão da Qualidade - Suprimentos;SGQ;SGQ;GERAL;2.2;Existe sistemática para tratamento de material não conforme no recebimento?
 
-10;Matéria-prima Metálica;ESCOPO;TECNICA;MP;10.1;Emite certificado de qualidade EN 10204 3.1 ou equivalente para cada lote?
-10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.2;Possui rastreabilidade do material por número de corrida ou lote?
-10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.3;Realiza ou comprova análise química e ensaios mecânicos?
-10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.4;Atende requisitos de serviço ácido quando aplicável?
-10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.5;Possui controle de estoque com identificação por especificação?
-10;Matéria-Prima Metálica;ESCOPO;TECNICA;MP;10.6;Possui sistemática de preservação contra corrosão?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.1;Existe manual de Segurança e Saúde Ocupacional?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.2;Possui Programa de Prevenção de Riscos Ambientais?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.3;Possui Programa de Controle Médico e Saúde Ocupacional?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.4;Possui indicadores de acidentes com e sem afastamento?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.5;Possui SESMT conforme NR-04?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.6;Possui CIPA?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.7;Possui sistemática de avaliação e investigação de acidentes?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.8;Possui plano de treinamento em SMS?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.9;Possui plano de gerenciamento de resíduos?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.10;Possui Licença de Operação emitida por órgão ambiental?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.11;Possui processo para análise de risco operacional?
+3;Gestão da Qualidade - Saúde, Segurança e Meio Ambiente (SMS);SGQ;SGQ;GERAL;3.12;Possui lista de controle de EPIs adequados às atividades?
 
-11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.1;Possui fornos com registro contínuo de temperatura?
-11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.2;Os fornos possuem qualificação vigente?
-11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.3;Possui procedimentos documentados para cada tratamento térmico?
-11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.4;Emite relatório rastreável do tratamento térmico?
-11;Tratamento Térmico;ESCOPO;TECNICA;TT;11.5;Realiza ensaios mecânicos pós-tratamento quando aplicável?
+4;Gestão da Qualidade - Outros Requisitos;SGQ;SGQ;GERAL;4.1;Possui política ou procedimento de gestão de ativos com indicadores definidos?
+4;Gestão da Qualidade - Outros Requisitos;SGQ;SGQ;GERAL;4.2;Possui política de segurança da informação, cibersegurança e privacidade?
+4;Gestão da Qualidade - Outros Requisitos;SGQ;SGQ;GERAL;4.3;Possui sistemática implementada para atendimento à LGPD?
+4;Gestão da Qualidade - Outros Requisitos;SGQ;SGQ;GERAL;4.4;Possui iniciativas para eficiência energética e redução de emissões?
+4;Gestão da Qualidade - Outros Requisitos;SGQ;SGQ;GERAL;4.5;Possui política de compliance e antissuborno?
+4;Gestão da Qualidade - Outros Requisitos;SGQ;SGQ;GERAL;4.6;Possui mecanismos para garantia dos Direitos Humanos em suas atividades?
+4;Gestão da Qualidade - Outros Requisitos;SGQ;SGQ;GERAL;4.7;Possui código de conduta publicamente acessível aprovado pela alta direção?
 
-13;Ferramentas de Corte, Pastilhas e Abrasivos;ESCOPO;TECNICA;FERR;13.1;Os produtos possuem identificação clara de fabricante e código?
-13;Ferramentas de Corte, Pastilhas e Abrasivos;ESCOPO;TECNICA;FERR;13.2;Possui rastreabilidade de lote?
-13;Ferramentas de Corte, Pastilhas e Abrasivos;ESCOPO;TECNICA;FERR;13.3;Disponibiliza suporte técnico para aplicação dos produtos?
-13;Ferramentas de Corte, Pastilhas e Abrasivos;ESCOPO;TECNICA;FERR;13.4;Possui estoque mínimo para itens críticos?
-
-14;Tintas e Revestimentos;ESCOPO;TECNICA;TINTA;14.1;Emite boletim técnico e FISPQ atualizados?
-14;Tintas e Revestimentos;ESCOPO;TECNICA;TINTA;14.2;Os produtos atendem às normas aplicáveis?
-14;Tintas e Revestimentos;ESCOPO;TECNICA;TINTA;14.3;Possui rastreabilidade de lote e validade?
-14;Tintas e Revestimentos;ESCOPO;TECNICA;TINTA;14.4;Emite certificado de qualidade por lote?
-
-15;Produtos Químicos;ESCOPO;TECNICA;QUIM;15.1;Emite FISPQ conforme legislação vigente?
-15;Produtos Químicos;ESCOPO;TECNICA;QUIM;15.2;Emite certificado de análise por lote?
-15;Produtos Químicos;ESCOPO;TECNICA;QUIM;15.3;Possui rastreabilidade dos lotes fornecidos?
-15;Produtos Químicos;ESCOPO;TECNICA;QUIM;15.4;Possui controle de armazenamento e transporte?
-
-16;Elastômeros, Componentes Poliméricos, Vedações e Vulcanização;ESCOPO;TECNICA;ELAST;16.1;Possui rastreabilidade da matéria-prima utilizada?
-16;Elastômeros, Componentes Poliméricos, Vedações e Vulcanização;ESCOPO;TECNICA;ELAST;16.2;Realiza ensaios físicos e dimensionais por lote?
-16;Elastômeros, Componentes Poliméricos, Vedações e Vulcanização;ESCOPO;TECNICA;ELAST;16.3;Possui controle de formulação e processo?
-16;Elastômeros, Componentes Poliméricos, Vedações e Vulcanização;ESCOPO;TECNICA;ELAST;16.4;Emite certificado de conformidade por lote?
-
-17;Molas;ESCOPO;TECNICA;MOLA;17.1;Possui projeto e cálculo documentado das molas?
-17;Molas;ESCOPO;TECNICA;MOLA;17.2;Realiza ensaios de carga e dimensional por lote?
-17;Molas;ESCOPO;TECNICA;MOLA;17.3;Possui registros rastreáveis dos tratamentos realizados?
-17;Molas;ESCOPO;TECNICA;MOLA;17.4;Possui rastreabilidade da matéria-prima utilizada?
-
-18;Ensaios Não Destrutivos;ESCOPO;TECNICA;END;18.1;Possui inspetores qualificados para os métodos executados?
-18;Ensaios Não Destrutivos;ESCOPO;TECNICA;END;18.2;Possui procedimentos escritos para cada método?
-18;Ensaios Não Destrutivos;ESCOPO;TECNICA;END;18.3;Os equipamentos possuem calibração rastreável?
-18;Ensaios Não Destrutivos;ESCOPO;TECNICA;END;18.4;Emite relatórios rastreáveis ao item inspecionado?
-
-19;Instrumentos de Medição;ESCOPO;TECNICA;INST;19.1;Os instrumentos são fornecidos com certificado de calibração?
-19;Instrumentos de Medição;ESCOPO;TECNICA;INST;19.2;Possui assistência técnica autorizada?
-19;Instrumentos de Medição;ESCOPO;TECNICA;INST;19.3;Disponibiliza equipamento reserva quando necessário?
-19;Instrumentos de Medição;ESCOPO;TECNICA;INST;19.4;Fornece documentação técnica aplicável?
-
-20;SaaS e Serviços de TI;ESCOPO;TECNICA;SAAS;20.1;Possui controles de segurança da informação implementados?
-20;SaaS e Serviços de TI;ESCOPO;TECNICA;SAAS;20.2;Está em conformidade com a LGPD?
-20;SaaS e Serviços de TI;ESCOPO;TECNICA;SAAS;20.3;Possui SLA formalizado?
-20;SaaS e Serviços de TI;ESCOPO;TECNICA;SAAS;20.4;Possui plano de backup e recuperação de desastres?
-
-21;Logística;ESCOPO;TECNICA;LOG;21.1;Possui indicador de entrega no prazo?
-21;Logística;ESCOPO;TECNICA;LOG;21.2;Comunica desvios de prazo e plano de recuperação?
-21;Logística;ESCOPO;TECNICA;LOG;21.3;Possui atendimento emergencial?
-21;Logística;ESCOPO;TECNICA;LOG;21.4;Possui controle de embalagem e transporte?
-21;Logística;ESCOPO;TECNICA;LOG;21.5;Fornece documentação de transporte completa?
-
-22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.1;Possui acreditação ISO/IEC 17025 ou equivalente?
-22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.2;O escopo da acreditação cobre os ensaios executados?
-22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.3;Possui procedimentos documentados para os ensaios?
-22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.4;Os equipamentos possuem calibração rastreável?
-22;Ensaios Destrutivos;ESCOPO;TECNICA;ED;22.5;Os relatórios emitidos são rastreáveis aos corpos de prova?
+5;Processos de Produção - Geral;PRODUCAO_GERAL;TECNICA;GERAL;5.1;Existe programação de produto ou serviço para atendimento dos prazos?
+5;Processos de Produção - Geral;PRODUCAO_GERAL;TECNICA;GERAL;5.2;Existe maquinário e ferramental adequado para execução dos serviços ou produtos?
+5;Processos de Produção - Geral;PRODUCAO_GERAL;TECNICA;GERAL;5.3;Possui procedimento operacional para execução do serviço ou produto?
+5;Processos de Produção - Geral;PRODUCAO_GERAL;TECNICA;GERAL;5.4;Possui programação de manutenção preventiva dos equipamentos?
+5;Processos de Produção - Geral;PRODUCAO_GERAL;TECNICA;GERAL;5.5;Possui sistemática para identificação do produto e situação de inspeção durante a produção?
+5;Processos de Produção - Geral;PRODUCAO_GERAL;TECNICA;GERAL;5.6;Possui sistemática para tratamento de produto ou serviço não conforme?
+5;Processos de Produção - Geral;PRODUCAO_GERAL;TECNICA;GERAL;5.7;Possui sistemática para identificação do produto e sua situação em estoque?
+5;Processos de Produção - Geral;PRODUCAO_GERAL;TECNICA;GERAL;5.8;Possui sistemática para armazenamento, manuseio e preservação do produto acabado?
