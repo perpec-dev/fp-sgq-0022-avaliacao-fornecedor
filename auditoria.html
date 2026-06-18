@@ -922,7 +922,7 @@ function gerarPDF(){
     linhas.forEach(([k,v])=>{
       doc.setFont('helvetica','bold');setC(GRAY);doc.text(k,ML,y);
       doc.setFont('helvetica','normal');setC(DARK);
-      const tx=doc.splitTextToSize(String(v||'—'),CW-42);doc.text(tx,ML+42,y);
+      const tx=doc.splitTextToSize(String(v||'—'),CW-58);doc.text(tx,ML+58,y);
       y+=Math.max(5,tx.length*4.6);
     });
     y+=3;
