@@ -12,20 +12,16 @@
 <!-- ============================================================= -->
 <script>
   const CONFIG = {
-    // Webhook do Make — recebe APENAS o JSON (dados + URLs dos arquivos).
-    // Payload minúsculo: sem binário, sem corrida, sem "content too large".
+    // Webhook do Make — recebe um ÚNICO POST multipart com os dados (JSON)
+    // e os 3 arquivos (Cartão CNPJ, Certificado SGQ, Relatório PDF) em binário.
     WEBHOOK_URL: "https://hook.us2.make.com/s0auqaxfdcxd4udgehn8gnceqk7r6z7w",
 
-    // ---- Cloudinary (armazenamento dos arquivos) ----
-    // O navegador sobe os arquivos direto na Cloudinary (upload "unsigned")
-    // e envia ao Make só as URLs. Preencha com os seus dados:
-    CLOUDINARY_CLOUD:  "dqodtc2yf",   // ex.: "perpec" (Cloud name do painel da Cloudinary)
-    CLOUDINARY_PRESET: "kztvojhn",   // nome do "Upload preset" UNSIGNED criado na Cloudinary
-    CLOUDINARY_FOLDER: "autoavaliacoes", // pasta onde os arquivos ficam organizados
+    // ---- Limite de payload do POST único (dados + 3 arquivos) ----
+    MAX_PAYLOAD_MB: 2,
 
-    // ---- Compressão de imagens (reduz upload e armazenamento) ----
+    // ---- Compressão de imagens (reduz o tamanho dos anexos) ----
     MAX_FILE_MB: 15,    // alerta se um único arquivo passar disso (após compressão).
-    IMG_MAX_PX:  1800,  // redimensiona imagens grandes (maior lado) antes de subir.
+    IMG_MAX_PX:  1800,  // redimensiona imagens grandes (maior lado) antes de anexar.
     IMG_QUALITY: 0.72,  // qualidade JPEG da recompressão de imagens.
 
     // Fontes de dados opcionais no repositório Git. Se ausentes,
@@ -53,8 +49,8 @@
     { min: 80, max: 100,    label: "Aprovado",                cor: "#2E7D32", rgb: [46, 125, 50],  bg: "#EAF6EB" }
   ];
 
-  // Formatos aceitos para upload de evidências/certificados
-  const ACCEPT_EVID = ".pdf,.docx,.xlsx,.pptx,.jpg,.jpeg,.png";
+  // Formatos aceitos para upload do certificado SGQ e do cartão CNPJ
+  const ACCEPT_CERT = ".pdf,.jpg,.jpeg,.png";
   const ACCEPT_CNPJ = ".pdf,.jpg,.jpeg,.png";
 </script>
 
@@ -70,6 +66,7 @@
   --radius:8px;--radius-lg:12px;
   --green:#2E7D32;--green-bg:#EAF6EB;--green-bd:#A7D7AA;
   --yellow:#B7791F;--yellow-bg:#FEF7E6;--yellow-bd:#F0D98A;
+  --blue:#3D5AC0;--blue-bg:#EEF2FF;--blue-bd:#B9C5EC;
 }
 body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
 .site-header{background:#fff;border-bottom:3px solid var(--red);box-shadow:0 2px 8px rgba(0,0,0,.08)}
@@ -173,6 +170,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 .q-block.done{border-left:4px solid var(--green)}
 .q-block.nc{border-left:4px solid var(--red)}
 .q-block.reg{border-left:4px solid var(--yellow)}
+.q-block.na{border-left:4px solid var(--blue)}
 .q-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:11px}
 .q-code{font-family:"Courier New",monospace;font-size:12px;font-weight:700;color:#fff;background:var(--dark);border-radius:6px;padding:3px 8px;flex-shrink:0}
 .q-text{flex:1;font-size:13.5px;line-height:1.45;color:var(--text);font-weight:500}
@@ -180,17 +178,19 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 .q-score.c{background:var(--green-bg);color:var(--green)}
 .q-score.r{background:var(--yellow-bg);color:var(--yellow)}
 .q-score.n{background:var(--accent-lt);color:var(--red)}
+.q-score.na{background:var(--blue-bg);color:var(--blue)}
 .status-pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px}
 .st-radio{display:none}
 .st-label{padding:6px 14px;border-radius:20px;font-size:12.5px;font-weight:600;border:1px solid var(--border2);cursor:pointer;background:var(--surface);color:var(--muted);transition:all .13s;user-select:none}
 .st-conf:checked + .st-label{background:var(--green);border-color:var(--green);color:#fff}
 .st-reg:checked + .st-label{background:var(--yellow);border-color:var(--yellow);color:#fff}
 .st-nc:checked + .st-label{background:var(--red);border-color:var(--red);color:#fff}
-.q-evid{margin-bottom:9px}
+.st-na:checked + .st-label{background:var(--blue);border-color:var(--blue);color:#fff}
 .q-com textarea{width:100%;border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:13px;font-family:inherit;min-height:46px;resize:vertical;color:var(--text)}
 .q-com textarea:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px rgba(192,57,43,.12)}
 .q-warn{display:none;margin-top:8px;font-size:11.5px;font-weight:600;color:var(--yellow);background:var(--yellow-bg);border:1px solid var(--yellow-bd);border-radius:6px;padding:6px 9px}
 .q-warn.show{display:block}
+.q-warn.err{color:var(--red);background:var(--accent-lt);border-color:#E8B8B0}
 .bloco-sub{font-size:11px;color:var(--muted);margin:-.5rem 0 .9rem;font-weight:500}
 .bloco-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-left:auto;flex-shrink:0}
 .bloco-tag.sgq{background:rgba(192,57,43,.2);color:#E08070}
@@ -240,7 +240,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
     <div class="doc-strip-inner">
       <div>
         <span class="doc-code-label">Protocolo</span>
-        <span class="doc-code-prefix">AF</span>
+        <span class="doc-code-prefix">RQF</span>
         <span class="doc-code-val" id="hdrProtocolo">—</span>
       </div>
       <span class="doc-meta" id="docRef">—</span>
@@ -260,6 +260,38 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 </div>
 
 <main class="wrap">
+
+  <!-- ===== COMO RESPONDER ===== -->
+  <div class="card">
+    <div class="card-head">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8.01"/></svg>
+      <h2>Como Responder este Questionário</h2>
+    </div>
+    <div class="card-body">
+      <div class="lgpd-note">
+        Para cada item do questionário, classifique a situação real do fornecedor:
+        <ul>
+          <li><strong>Conforme (OK):</strong> existe documentação formal <strong>e</strong> a prática é efetivamente realizada.</li>
+          <li><strong>Regular:</strong> existe documentação, mas a prática não é realizada — <strong>ou</strong> a prática é realizada, mas não existe documentação formal.</li>
+          <li><strong>Não Conforme (NC):</strong> não existe documentação <strong>e</strong> a prática não é realizada.</li>
+          <li><strong>Não Aplicável:</strong> o requisito não se aplica ao escopo deste fornecimento. Nesse caso é <strong>obrigatório</strong> justificar no campo de comentário, ou referenciar a evidência apresentada na pasta indicada abaixo.</li>
+        </ul>
+        <p style="margin-top:10px"><strong>Importante:</strong> respostas marcadas como “Conforme” sem evidência comentada (no campo de observações) ou apresentada na pasta de evidências serão automaticamente reclassificadas como <strong>“Regular”</strong> na pontuação final.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PASTA DE EVIDÊNCIAS ===== -->
+  <div class="card">
+    <div class="card-head">
+      <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      <h2>Pasta de Evidências</h2>
+    </div>
+    <div class="card-body">
+      <p class="lgpd-note">Envie todos os documentos comprobatórios (certificados, procedimentos, registros, fotos etc.) referentes às respostas deste questionário para a pasta abaixo, fornecida pela Perpec especificamente para este fornecedor.</p>
+      <div id="pastaEvidWrap" style="margin-top:12px"></div>
+    </div>
+  </div>
 
   <!-- ===== AVISO LGPD ===== -->
   <div class="card">
@@ -294,11 +326,15 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
       </div>
       <div class="card-body">
         <div class="g2" style="margin-bottom:13px">
+          <div class="field"><label>Protocolo</label><input type="text" id="protocoloField" readonly></div>
+          <div class="field"><label>Data e Hora do Preenchimento</label><input type="text" id="dataHoraField" readonly></div>
+        </div>
+        <div class="g2" style="margin-bottom:13px">
           <div class="field"><label>Razão Social <span class="req">*</span></label><input type="text" id="razaoSocial" placeholder="Razão social completa"></div>
           <div class="field"><label>Nome Fantasia <span class="req">*</span></label><input type="text" id="nomeFantasia" placeholder="Nome fantasia"></div>
         </div>
         <div class="g2" style="margin-bottom:13px">
-          <div class="field"><label>CNPJ <span class="req">*</span></label><input type="text" id="cnpj" placeholder="00.000.000/0000-00" oninput="maskCNPJ(this);atualizarProtocolo()" maxlength="18"></div>
+          <div class="field"><label>CNPJ <span class="req">*</span></label><input type="text" id="cnpj" placeholder="00.000.000/0000-00" oninput="maskCNPJ(this)" maxlength="18"></div>
           <div class="field">
             <label>Cartão CNPJ <span class="req">*</span></label>
             <div id="cnpjUpload"></div>
@@ -623,9 +659,11 @@ let ESCOPOS = [
    ================================================================ */
 let blocosMap = {};                 // id -> bloco
 let escoposSel = [];                // nomes de escopos selecionados
-let respostas = {};                 // qid -> {status, comentario, file}
+let respostas = {};                 // qid -> {status, comentario}
 let arquivoCNPJ = null, arquivoCert = null;
 let protocolo = "";
+let dataHoraPreenchimento = "";
+let linkPastaEvidencias = "";
 const PROD_GERAL_ID = "5";          // id do bloco "Produção Geral"
 
 /* ================================================================
@@ -652,6 +690,8 @@ function maskTel(el){let v=el.value.replace(/\D/g,'').slice(0,11);
 window.onload = async () => {
   document.getElementById('docRef').textContent = CONFIG.DOC_REF;
   gerarProtocolo();
+  definirDataHora();
+  carregarLinkPasta();
   await carregarEscoposExternos();
   await carregarPerguntasExternas();
   BANCO_PERGUNTAS.forEach(b=>blocosMap[b.id]=b);
@@ -660,12 +700,39 @@ window.onload = async () => {
   carregarLogo();
 };
 
+/* Protocolo no formato RQF-XXX-YY (XXX = nº aleatório, YY = ano atual) */
 function gerarProtocolo(){
-  const d=new Date(), p=n=>String(n).padStart(2,'0');
-  protocolo = p(d.getFullYear())+p(d.getMonth()+1)+p(d.getDate())+'-'+String(Math.floor(Math.random()*9000)+1000);
+  const ano=String(new Date().getFullYear()).slice(-2);
+  const num=String(Math.floor(Math.random()*900)+100); // 100-999
+  protocolo = num+'-'+ano;
   atualizarProtocolo();
 }
-function atualizarProtocolo(){document.getElementById('hdrProtocolo').textContent='AF-'+protocolo;}
+function atualizarProtocolo(){
+  document.getElementById('hdrProtocolo').textContent=protocolo;
+  const f=document.getElementById('protocoloField'); if(f) f.value='RQF-'+protocolo;
+}
+
+/* Data/hora do preenchimento — fixada automaticamente ao abrir o formulário */
+function definirDataHora(){
+  dataHoraPreenchimento=new Date().toLocaleString('pt-BR');
+  const f=document.getElementById('dataHoraField'); if(f) f.value=dataHoraPreenchimento;
+}
+
+/* Link da pasta de evidências — pré-preenchido via parâmetro de URL (?pasta=...)
+   Cada fornecedor recebe um link diferente, com a pasta específica dele. */
+function carregarLinkPasta(){
+  try{
+    const qp=new URLSearchParams(window.location.search);
+    linkPastaEvidencias=(qp.get('pasta')||'').trim();
+  }catch(e){ linkPastaEvidencias=''; }
+  renderPastaEvid();
+}
+function renderPastaEvid(){
+  const wrap=document.getElementById('pastaEvidWrap'); if(!wrap) return;
+  wrap.innerHTML = linkPastaEvidencias
+    ? '<a class="btn btn-red" href="'+esc(linkPastaEvidencias)+'" target="_blank" rel="noopener">⬆ Abrir Pasta de Evidências</a>'
+    : '<div class="q-warn show">⚠ Nenhuma pasta de evidências foi vinculada a este link. Solicite à Perpec o link correto de acesso.</div>';
+}
 
 /* ----- carga opcional de CSV externos (sobrepõe o fallback) ----- */
 async function carregarEscoposExternos(){
@@ -776,7 +843,7 @@ function fileWidget(containerId, accept, getFile, onPick, onClear){
     + '</div>';
 }
 function renderCNPJUpload(){fileWidget('cnpjUpload',ACCEPT_CNPJ,()=>arquivoCNPJ,'pickCNPJ','clearCNPJ');}
-function renderCertUpload(){fileWidget('certUpload',ACCEPT_EVID,()=>arquivoCert,'pickCert','clearCert');}
+function renderCertUpload(){fileWidget('certUpload',ACCEPT_CERT,()=>arquivoCert,'pickCert','clearCert');}
 async function pickCNPJ(i){arquivoCNPJ=await processarEscolha(i.files[0]);renderCNPJUpload();atualizar();}
 function clearCNPJ(){arquivoCNPJ=null;renderCNPJUpload();atualizar();}
 async function pickCert(i){arquivoCert=await processarEscolha(i.files[0]);renderCertUpload();atualizar();}
@@ -857,47 +924,27 @@ function renderQ(b,p){
       +(r.status===val?'checked':'')+' onchange="setStatus(\''+id+'\',\''+val+'\')">'
       +'<label class="st-label" for="'+rid+'">'+lbl+'</label>';
   };
-  const fileName = r.file
-    ? '<span class="file-name"><span class="ok-dot"></span>'+esc(r.file.name)+'<span class="x" onclick="clearEvid(\''+id+'\')">×</span></span>'
-    : '<span class="file-name empty">Sem evidência anexada</span>';
   return '<div class="q-block" id="blk_'+id+'">'
     +'<div class="q-top"><span class="q-code">'+esc(p.c)+'</span>'
     +'<span class="q-text">'+esc(p.t)+'</span>'
     +'<span class="q-score" id="score_'+id+'">—</span></div>'
-    +'<div class="status-pills">'+pill('st-conf','Conforme','Conforme')+pill('st-reg','Regular','Regular')+pill('st-nc','Não Conforme','Não Conforme')+'</div>'
-    +'<div class="q-evid"><div class="file-row">'
-    +'<label class="file-btn"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Evidência'
-    +'<input type="file" accept="'+ACCEPT_EVID+'" style="display:none" onchange="setEvid(\''+id+'\',this)"></label>'
-    +fileName+'</div></div>'
-    +'<div class="q-com"><textarea placeholder="Observações desta pergunta (opcional)..." oninput="setCom(\''+id+'\',this.value)">'+esc(r.comentario||'')+'</textarea></div>'
-    +'<div class="q-warn" id="warn_'+id+'">⚠ Marcado como “Conforme” sem evidência anexada — reclassificado para “Regular” (75 pts) no cálculo.</div>'
+    +'<div class="status-pills">'+pill('st-conf','Conforme','Conforme')+pill('st-reg','Regular','Regular')+pill('st-nc','Não Conforme','Não Conforme')+pill('st-na','Não Aplicável','Não Aplicável')+'</div>'
+    +'<div class="q-com"><textarea placeholder="Observações / evidência comentada desta pergunta..." oninput="setCom(\''+id+'\',this.value)">'+esc(r.comentario||'')+'</textarea></div>'
+    +'<div class="q-warn" id="warn_'+id+'"></div>'
     +'</div>';
 }
 
-function ensure(id){if(!respostas[id])respostas[id]={status:'',comentario:'',file:null};return respostas[id];}
+function ensure(id){if(!respostas[id])respostas[id]={status:'',comentario:''};return respostas[id];}
 function setStatus(id,v){ensure(id).status=v;atualizarQ(id);atualizar();}
-function setCom(id,v){ensure(id).comentario=v;}
-function setEvid(id,inp){const raw=inp.files[0]||null;
-  if(!raw){ensure(id).file=null;atualizarQ(id);atualizar();return;}
-  processarEscolha(raw).then(f=>{
-    ensure(id).file=f;
-    const blk=document.getElementById('blk_'+id);
-    if(blk){const fn=blk.querySelector('.q-evid .file-name');
-      if(fn)fn.outerHTML='<span class="file-name"><span class="ok-dot"></span>'+esc(f.name)+' · '+fmtMB(f.size)+'<span class="x" onclick="clearEvid(\''+id+'\')">×</span></span>';}
-    atualizarQ(id);atualizar();
-  });
-}
-function clearEvid(id){if(respostas[id])respostas[id].file=null;
-  const blk=document.getElementById('blk_'+id);
-  if(blk){const fr=blk.querySelector('.q-evid .file-row');
-    fr.querySelector('.file-name').outerHTML='<span class="file-name empty">Sem evidência anexada</span>';}
-  atualizarQ(id);atualizar();}
+function setCom(id,v){ensure(id).comentario=v;atualizarQ(id);atualizar();}
 
-/* avaliação efetiva de uma pergunta (aplica regra de evidência) */
+/* avaliação efetiva de uma pergunta (aplica regra de evidência comentada e N/A) */
 function efetivo(id){
   const r=respostas[id]; if(!r||!r.status) return null;
+  const temComentario=!!(r.comentario&&r.comentario.trim());
+  if(r.status==='Não Aplicável') return {status:'Não Aplicável',pts:null,reclass:false,na:true,pendenteJustificativa:!temComentario};
   if(r.status==='Conforme'){
-    if(!r.file) return {status:'Regular',pts:SCORING.REGULAR,reclass:true};
+    if(!temComentario) return {status:'Regular',pts:SCORING.REGULAR,reclass:true};
     return {status:'Conforme',pts:SCORING.CONFORME,reclass:false};
   }
   if(r.status==='Regular') return {status:'Regular',pts:SCORING.REGULAR,reclass:false};
@@ -910,10 +957,22 @@ function atualizarQ(id){
   const warn=document.getElementById('warn_'+id);
   const blk=document.getElementById('blk_'+id);
   if(!score) return;
-  if(!e){score.textContent='—';score.className='q-score';if(warn)warn.classList.remove('show');if(blk)blk.className='q-block';return;}
+  if(!e){score.textContent='—';score.className='q-score';if(warn){warn.classList.remove('show','err');warn.textContent='';}if(blk)blk.className='q-block';return;}
+  if(e.na){
+    score.textContent='N/A';score.className='q-score na';
+    if(blk) blk.className='q-block na';
+    if(warn){
+      if(e.pendenteJustificativa){warn.textContent='⚠ “Não Aplicável” requer justificativa no campo de comentário (ou evidência na pasta indicada).';warn.className='q-warn show err';}
+      else{warn.classList.remove('show');warn.textContent='';}
+    }
+    return;
+  }
   score.textContent=e.pts;
   score.className='q-score '+(e.pts===100?'c':e.pts===75?'r':'n');
-  if(warn) warn.classList.toggle('show',!!e.reclass);
+  if(warn){
+    if(e.reclass){warn.textContent='⚠ Marcado como “Conforme” sem evidência comentada — reclassificado para “Regular” (75 pts) no cálculo.';warn.className='q-warn show';}
+    else{warn.classList.remove('show');warn.textContent='';}
+  }
   if(blk) blk.className='q-block '+(e.pts===100?'done':e.pts===75?'reg':'nc');
 }
 
@@ -925,7 +984,7 @@ function calcular(){
   let sgq=[],tec=[],total=0,respondidas=0;
   blocos.forEach(b=>b.perguntas.forEach(p=>{
     total++; const id=qid(b.id,p.c); const e=efetivo(id);
-    if(e){respondidas++;(b.bloco_nota==='SGQ'?sgq:tec).push(e.pts);}
+    if(e){respondidas++; if(!e.na)(b.bloco_nota==='SGQ'?sgq:tec).push(e.pts);}
   }));
   const media=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
   const nSGQ=media(sgq), nTec=media(tec);
@@ -970,19 +1029,16 @@ function atualizar(){
   const ininfo=document.getElementById('anexosInfo');
   if(ininfo){
     const lista=listarArquivos(); let tot=0; lista.forEach(a=>tot+=a.file.size);
-    ininfo.innerHTML = lista.length===0 ? '' : ('📎 '+lista.length+' anexo(s) · '+fmtMB(tot)+' (enviados ao subir)');
+    ininfo.innerHTML = lista.length===0 ? '' : ('📎 '+lista.length+' anexo(s) · '+fmtMB(tot)+' (o relatório PDF é gerado e somado a este total no envio)');
   }
 }
 
-/* Lista todos os arquivos anexados no momento (sem o PDF, gerado no envio). */
+/* Lista os arquivos anexados até agora (Cartão CNPJ + Certificado SGQ).
+   O Relatório PDF é gerado e somado a esta lista apenas no momento do envio. */
 function listarArquivos(){
   const arr=[];
   if(arquivoCNPJ) arr.push({campo:'Cartão CNPJ', file:arquivoCNPJ});
   if(arquivoCert) arr.push({campo:'Certificado SGQ', file:arquivoCert});
-  blocosVisiveis().forEach(b=>b.perguntas.forEach(p=>{
-    const r=respostas[qid(b.id,p.c)];
-    if(r&&r.file) arr.push({campo:'Evidência '+p.c, file:r.file});
-  }));
   return arr;
 }
 
@@ -1001,10 +1057,15 @@ function validar(){
   if(!cert) erros.push('Possui certificação de SGQ? (Sim/Não)');
   else if(cert.value==='Sim'&&!arquivoCert) erros.push('Certificado de SGQ');
   if(!escoposSel.length) erros.push('Ao menos um escopo de fornecimento');
-  // todas as perguntas visíveis respondidas
-  const blocos=blocosVisiveis(); let pend=0;
-  blocos.forEach(b=>b.perguntas.forEach(p=>{if(!efetivo(qid(b.id,p.c)))pend++;}));
+  // todas as perguntas visíveis respondidas + justificativa obrigatória em "Não Aplicável"
+  const blocos=blocosVisiveis(); let pend=0, pendNA=0;
+  blocos.forEach(b=>b.perguntas.forEach(p=>{
+    const e=efetivo(qid(b.id,p.c));
+    if(!e) pend++;
+    else if(e.na && e.pendenteJustificativa) pendNA++;
+  }));
   if(pend>0) erros.push(pend+' pergunta(s) sem status');
+  if(pendNA>0) erros.push(pendNA+' pergunta(s) "Não Aplicável" sem justificativa no comentário');
   return erros;
 }
 
@@ -1018,12 +1079,13 @@ function coletar(){
     const id=qid(b.id,p.c), st=respostas[id]||{}, e=efetivo(id);
     respList.push({bloco:b.id+' - '+b.categoria, bloco_nota:b.bloco_nota, codigo:p.c, texto:p.t,
       status_informado:st.status||'', status_efetivo:e?e.status:'', pontuacao:e?e.pts:null,
-      reclassificado:e?!!e.reclass:false, tem_evidencia:!!(st.file), comentario:st.comentario||''});
+      reclassificado:e?!!e.reclass:false, tem_comentario:!!(st.comentario&&st.comentario.trim()), comentario:st.comentario||''});
   }));
   return {
-    protocolo:'AF-'+protocolo,
+    protocolo:'RQF-'+protocolo,
     documento_ref:CONFIG.DOC_REF,
-    data_hora:new Date().toLocaleString('pt-BR'),
+    data_hora:dataHoraPreenchimento,
+    link_pasta_evidencias:linkPastaEvidencias,
     fornecedor:{
       razao_social:val('razaoSocial'), nome_fantasia:val('nomeFantasia'), cnpj:val('cnpj'),
       cnae:"", // preenchido posteriormente a partir do Cartão CNPJ (cenário Make)
@@ -1038,35 +1100,11 @@ function coletar(){
 }
 
 /* ================================================================
-   ENVIO — arquivos vão para a Cloudinary; ao Make vai só o JSON+URLs
-   ----------------------------------------------------------------
-   1) Cada arquivo sobe direto para a Cloudinary (upload unsigned).
-   2) Coletamos as URLs.
-   3) UM POST leve ao Make: dados + lista de {campo, nome, url}.
-   → Sem binário no webhook: sem "content too large", sem corrida.
-   Nunca falha em silêncio: o PDF é sempre baixado e há resumo final.
+   ENVIO — UM ÚNICO POST multipart ao webhook do Make, com os 3
+   arquivos em binário (Cartão CNPJ, Certificado SGQ, Relatório PDF)
+   + os dados em JSON. Sem serviço externo de armazenamento.
+   O payload total é checado contra CONFIG.MAX_PAYLOAD_MB antes do envio.
    ================================================================ */
-
-const pausa = ms => new Promise(r=>setTimeout(r,ms));
-
-/* Sobe um arquivo para a Cloudinary (unsigned) e devolve a URL segura.
-   resource_type "auto" → trata imagem, PDF e documentos. 1 retry. */
-async function uploadCloudinary(file){
-  const url='https://api.cloudinary.com/v1_1/'+CONFIG.CLOUDINARY_CLOUD+'/auto/upload';
-  for(let tent=1; tent<=2; tent++){
-    try{
-      const fd=new FormData();
-      fd.append('file', file);
-      fd.append('upload_preset', CONFIG.CLOUDINARY_PRESET);
-      if(CONFIG.CLOUDINARY_FOLDER) fd.append('folder', CONFIG.CLOUDINARY_FOLDER);
-      const res=await fetch(url,{method:'POST',body:fd});
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      const j=await res.json();
-      return j.secure_url || j.url;
-    }catch(e){ if(tent===2){console.error('Falha Cloudinary:',file.name,e); return null;} await pausa(1000); }
-  }
-  return null;
-}
 
 async function enviar(){
   const erros=validar();
@@ -1074,56 +1112,51 @@ async function enviar(){
     showToast('Pendências:\n• '+erros.slice(0,6).join('\n• ')+(erros.length>6?'\n  …e mais '+(erros.length-6):''),'error');
     return;
   }
-  if(!CONFIG.CLOUDINARY_CLOUD || !CONFIG.CLOUDINARY_PRESET){
-    showToast('Configuração pendente: defina CLOUDINARY_CLOUD e CLOUDINARY_PRESET no topo do arquivo.','error');
-    return;
-  }
   const btn=document.getElementById('btnEnviar'); btn.disabled=true; btn.textContent='⏳ Gerando PDF...';
 
   try{
-    // 1) PDF (sempre baixado localmente — nada se perde mesmo se o envio falhar)
+    // 1) Relatório PDF (comprimido) — sempre baixado localmente também
     const pdfBlob=await gerarPDF(true);
-    const pdfFile=new File([pdfBlob],'Autoavaliacao-AF-'+protocolo+'.pdf',{type:'application/pdf'});
+    const pdfFile=new File([pdfBlob],'Autoavaliacao-RQF-'+protocolo+'.pdf',{type:'application/pdf'});
 
-    // 2) Lista de arquivos (evidências + CNPJ + cert + PDF)
+    // 2) Os 3 únicos arquivos do envio
     const arquivos=listarArquivos();
     arquivos.push({campo:'Relatório PDF', file:pdfFile});
 
-    // 3) Sobe cada arquivo para a Cloudinary, coletando as URLs
-    const enviados=[]; const falhas=[];
-    for(let i=0;i<arquivos.length;i++){
-      btn.textContent='⏳ Subindo arquivo '+(i+1)+'/'+arquivos.length+'...';
-      const a=arquivos[i];
-      const url=await uploadCloudinary(a.file);
-      if(url) enviados.push({campo:a.campo, nome:a.file.name, url:url, tamanho_bytes:a.file.size});
-      else    falhas.push(a.campo);
+    // 3) Checagem do limite de payload (dados + 3 arquivos)
+    const dados=coletar();
+    const dadosStr=JSON.stringify(dados);
+    let totalBytes=dadosStr.length; arquivos.forEach(a=>totalBytes+=a.file.size);
+    const limiteBytes=CONFIG.MAX_PAYLOAD_MB*1048576;
+    if(totalBytes>limiteBytes){
+      showToast('O payload total ('+fmtMB(totalBytes)+') excede o limite de '+CONFIG.MAX_PAYLOAD_MB+' MB.\nReduza o tamanho do Cartão CNPJ e/ou do Certificado SGQ (foto ou scan mais leve) e tente novamente.\nO PDF foi baixado localmente.','error');
+      return;
     }
 
-    // 4) Monta os dados com as URLs e manda UM POST leve ao Make
-    const dados=coletar();
-    dados.arquivos=enviados;          // [{campo, nome, url, tamanho_bytes}]
-    dados.total_arquivos=enviados.length;
-    const prot='AF-'+protocolo;
+    // 4) UM único POST multipart ao Make, com dados + binários dos 3 arquivos
+    btn.textContent='⏳ Enviando...';
+    const fd=new FormData();
+    fd.append('protocolo', dados.protocolo);
+    fd.append('dados', dadosStr);
+    fd.append('cartao_cnpj', arquivoCNPJ, arquivoCNPJ.name);
+    if(arquivoCert) fd.append('certificado_sgq', arquivoCert, arquivoCert.name);
+    fd.append('relatorio_pdf', pdfFile, pdfFile.name);
 
     let okWebhook=true;
     if(CONFIG.WEBHOOK_URL){
-      btn.textContent='⏳ Enviando ao Make...';
-      const fd=new FormData();
-      fd.append('protocolo', prot);
-      fd.append('dados', JSON.stringify(dados));
       try{ await fetch(CONFIG.WEBHOOK_URL,{method:'POST',mode:'no-cors',body:fd}); }
       catch(e){ okWebhook=false; console.error('Falha webhook:',e); }
+    }else{
+      okWebhook=false;
     }
 
     // 5) Resumo honesto
     if(!CONFIG.WEBHOOK_URL){
-      showToast('PDF gerado e arquivos na Cloudinary.\n(Webhook do Make não configurado)','success');
+      showToast('PDF gerado.\n(Webhook do Make não configurado)','error');
     }else if(!okWebhook){
-      showToast('Arquivos subiram, mas falhou o envio ao Make.\nO PDF foi baixado. Verifique a URL do webhook.','error');
-    }else if(falhas.length===0){
-      showToast('✓ Autoavaliação enviada!\nDados + '+enviados.length+' arquivo(s).','success');
+      showToast('Falha ao enviar ao Make.\nO PDF foi baixado. Verifique a URL do webhook e tente novamente.','error');
     }else{
-      showToast('Envio parcial: '+enviados.length+' arquivo(s) ok, '+falhas.length+' falhou(aram).\nNão enviados: '+falhas.slice(0,4).join(', ')+(falhas.length>4?'…':'')+'\nO PDF foi baixado — encaminhe os pendentes manualmente.','error');
+      showToast('✓ Autoavaliação enviada!\nDados + '+arquivos.length+' arquivo(s) ('+fmtMB(totalBytes)+').','success');
     }
   }catch(e){
     console.error('Erro no envio:',e);
@@ -1140,7 +1173,7 @@ async function enviar(){
    ================================================================ */
 async function gerarPDF(returnBlob){
   const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
   const W=210,H=297,ML=10,MR=10,CW=W-ML-MR;
   const DARK=[26,18,16],GRAY=[135,130,125],RED=[192,57,43],LGRAY=[224,219,213];
   const d=coletar();
@@ -1187,7 +1220,8 @@ async function gerarPDF(returnBlob){
     ['Razão Social:',fo.razao_social],['Nome Fantasia:',fo.nome_fantasia],['CNPJ:',fo.cnpj],
     ['Endereço:',fo.endereco+' — '+fo.cidade+'/'+fo.estado],
     ['Responsável:',fo.responsavel+'  ('+fo.cargo+')'],['Contato:',fo.email+'  •  '+fo.telefone],
-    ['Certificação SGQ:',d.certificacao_sgq.possui],['Escopos:',d.escopos.join('; ')]
+    ['Certificação SGQ:',d.certificacao_sgq.possui],['Escopos:',d.escopos.join('; ')],
+    ['Pasta de Evidências:',d.link_pasta_evidencias||'—']
   ]);
 
   // ---- Resultado consolidado (destaque) ----
@@ -1210,7 +1244,7 @@ async function gerarPDF(returnBlob){
   const byBloco={};
   d.respostas.forEach(r=>{(byBloco[r.bloco]=byBloco[r.bloco]||[]).push(r);});
   Object.keys(byBloco).forEach(bk=>{
-    const rows=byBloco[bk].map(r=>[r.codigo,r.texto,r.status_efetivo+(r.reclassificado?' *':''),r.pontuacao==null?'—':String(r.pontuacao),r.comentario||'']);
+    const rows=byBloco[bk].map(r=>[r.codigo,r.texto,r.status_efetivo+(r.reclassificado?' *':''),r.pontuacao==null?(r.status_efetivo==='Não Aplicável'?'N/A':'—'):String(r.pontuacao),r.comentario||'']);
     doc.autoTable({
       startY:y+2,margin:{left:ML,right:MR},
       head:[[ {content:bk,colSpan:5,styles:{halign:'left',fillColor:DARK,textColor:[212,200,196],fontSize:7.5}} ],
@@ -1222,15 +1256,17 @@ async function gerarPDF(returnBlob){
       didParseCell:hook=>{
         if(hook.section==='body'&&hook.column.index===2){
           const v=hook.cell.raw||'';
-          if(v.indexOf('Conforme')===0)hook.cell.styles.textColor=[46,125,50];
+          if(v.indexOf('Não Conforme')===0)hook.cell.styles.textColor=[192,57,43];
+          else if(v.indexOf('Não Aplicável')===0)hook.cell.styles.textColor=[61,90,192];
+          else if(v.indexOf('Conforme')===0)hook.cell.styles.textColor=[46,125,50];
           else if(v.indexOf('Regular')===0)hook.cell.styles.textColor=[183,121,31];
-          else if(v.indexOf('Não Conforme')===0)hook.cell.styles.textColor=[192,57,43];
         }
         if(hook.section==='body'&&hook.column.index===3){
           const p=hook.cell.raw;
           if(p==='100')hook.cell.styles.textColor=[46,125,50];
           else if(p==='75')hook.cell.styles.textColor=[183,121,31];
           else if(p==='0')hook.cell.styles.textColor=[192,57,43];
+          else if(p==='N/A')hook.cell.styles.textColor=[61,90,192];
         }
       },
       didDrawPage:()=>{footer();}
@@ -1240,10 +1276,10 @@ async function gerarPDF(returnBlob){
   // legenda reclassificação
   doc.setFontSize(6.5);doc.setFont('helvetica','italic');setC(GRAY);
   if(y>H-16){doc.addPage();y=20;}
-  doc.text('* Reclassificado para “Regular” por ausência de evidência anexada (Conforme sem evidência = 75 pts).',ML,y+3);
+  doc.text('* Reclassificado para “Regular” por ausência de evidência comentada (Conforme sem evidência = 75 pts).',ML,y+3);
 
   const tot=doc.internal.getNumberOfPages();for(let i=1;i<=tot;i++){doc.setPage(i);footer();}
-  const nome='Autoavaliacao-AF-'+protocolo+'.pdf';
+  const nome='Autoavaliacao-RQF-'+protocolo+'.pdf';
   if(returnBlob){doc.save(nome);return doc.output('blob');}
   doc.save(nome);
 }
@@ -1254,9 +1290,10 @@ async function gerarPDF(returnBlob){
 function limpar(){
   if(!confirm('Limpar todo o formulário?'))return;
   respostas={}; escoposSel=[]; arquivoCNPJ=null; arquivoCert=null;
-  document.querySelectorAll('#conteudo input[type="text"],#conteudo input[type="email"]').forEach(el=>el.value='');
+  document.querySelectorAll('#conteudo input[type="text"]:not([readonly]),#conteudo input[type="email"]').forEach(el=>el.value='');
   document.querySelectorAll('input[name="certSGQ"]').forEach(el=>el.checked=false);
   document.getElementById('certUploadWrap').style.display='none';
+  gerarProtocolo(); definirDataHora();
   renderCNPJUpload(); renderCertUpload(); renderEscopos(); renderPerguntas(); atualizar();
   showToast('Formulário limpo.');
 }
