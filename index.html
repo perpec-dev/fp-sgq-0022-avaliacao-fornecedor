@@ -12,15 +12,16 @@
 <!-- ============================================================= -->
 <script>
   const CONFIG = {
-    // POST 1 — dados textuais (JSON leve, sem arquivos).
-    // No Make: recebe JSON → cria item no Monday.com.
+    // URL única do webhook Make — recebe tudo num multipart/form-data.
+    // O Make consegue ler o campo "dados" (JSON) e os arquivos no mesmo módulo.
     WEBHOOK_URL: "https://hook.us2.make.com/s0auqaxfdcxd4udgehn8gnceqk7r6z7w",
 
-    // POST 2 — arquivos individuais (multipart/form-data).
-    // No Make: recebe cada arquivo + campo "protocolo" → anexa ao item do Monday.
-    // Pode ser o mesmo webhook ou um cenário separado.
-    // Deixe vazio ("") para desativar o envio de arquivos (PDF ainda será baixado localmente).
-    WEBHOOK_ARQUIVOS_URL: "https://hook.us2.make.com/i836n3rnrarqg1xvo3d549azmxkllza1",
+    // ---- Robustez de envio de arquivos ----
+    MAX_REQUEST_MB: 25,   // teto por requisição. Se o total passar, fatia em vários POSTs.
+    MAX_FILE_MB:    20,   // alerta se um único arquivo passar disso (após compressão).
+    ENVIO_DELAY_MS: 1800, // pausa entre lotes (dá tempo do Make criar o item antes dos arquivos).
+    IMG_MAX_PX:     1800, // redimensiona imagens grandes (maior lado) antes de anexar.
+    IMG_QUALITY:    0.72, // qualidade JPEG da recompressão de imagens.
 
     // Fontes de dados opcionais no repositório Git. Se ausentes,
     // o portal usa os bancos embutidos mais abaixo (fallback).
@@ -375,6 +376,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
     </div>
 
     <!-- ===== AÇÕES ===== -->
+    <div id="anexosInfo" style="text-align:center;font-size:12px;color:var(--muted);margin:-.4rem 0 .9rem"></div>
     <div class="act-bar">
       <div class="act-group">
         <button class="btn btn-outline" onclick="limpar()">Limpar Tudo</button>
@@ -717,8 +719,44 @@ function toggleCert(){
 }
 
 /* ================================================================
-   UPLOADS (componente reutilizável)
+   UPLOADS (componente reutilizável) + COMPRESSÃO/VALIDAÇÃO
    ================================================================ */
+function fmtMB(bytes){return (bytes/1048576).toFixed(2).replace('.',',')+' MB';}
+
+/* Recomprime imagens grandes (jpeg/png) para reduzir o payload.
+   Arquivos não-imagem (pdf, docx, xlsx...) passam intactos. */
+function prepararArquivo(file){
+  return new Promise(resolve=>{
+    if(!file){resolve(null);return;}
+    if(!/^image\/(jpeg|png|webp)$/i.test(file.type)){resolve(file);return;}
+    const img=new Image(); const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      let {width:w,height:h}=img; const max=CONFIG.IMG_MAX_PX;
+      if(w>max||h>max){const s=Math.min(max/w,max/h);w=Math.round(w*s);h=Math.round(h*s);}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      cv.toBlob(blob=>{
+        if(!blob||blob.size>=file.size){resolve(file);return;} // se não ajudou, mantém original
+        const nome=file.name.replace(/\.(png|webp)$/i,'.jpg');
+        resolve(new File([blob],nome,{type:'image/jpeg'}));
+      },'image/jpeg',CONFIG.IMG_QUALITY);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);resolve(file);};
+    img.src=url;
+  });
+}
+
+/* Processa um arquivo escolhido: comprime, valida tamanho e devolve. */
+async function processarEscolha(rawFile){
+  if(!rawFile) return null;
+  const f=await prepararArquivo(rawFile);
+  if(f.size>CONFIG.MAX_FILE_MB*1048576){
+    showToast('Atenção: "'+f.name+'" tem '+fmtMB(f.size)+' (acima de '+CONFIG.MAX_FILE_MB+' MB).\nSerá enviado, mas considere reduzir o arquivo.','error');
+  }
+  return f;
+}
+
 function fileWidget(containerId, accept, getFile, onPick, onClear){
   const cont=document.getElementById(containerId); if(!cont) return;
   const f=getFile();
@@ -728,16 +766,16 @@ function fileWidget(containerId, accept, getFile, onPick, onClear){
     + (f?'Trocar arquivo':'Selecionar arquivo')
     + '<input type="file" accept="'+accept+'" style="display:none" onchange="'+onPick+'(this)"></label>'
     + (f
-        ? '<span class="file-name"><span class="ok-dot"></span>'+esc(f.name)+'<span class="x" onclick="'+onClear+'()">×</span></span>'
+        ? '<span class="file-name"><span class="ok-dot"></span>'+esc(f.name)+' · '+fmtMB(f.size)+'<span class="x" onclick="'+onClear+'()">×</span></span>'
         : '<span class="file-name empty">Nenhum arquivo</span>')
     + '</div>';
 }
 function renderCNPJUpload(){fileWidget('cnpjUpload',ACCEPT_CNPJ,()=>arquivoCNPJ,'pickCNPJ','clearCNPJ');}
 function renderCertUpload(){fileWidget('certUpload',ACCEPT_EVID,()=>arquivoCert,'pickCert','clearCert');}
-function pickCNPJ(i){arquivoCNPJ=i.files[0]||null;renderCNPJUpload();}
-function clearCNPJ(){arquivoCNPJ=null;renderCNPJUpload();}
-function pickCert(i){arquivoCert=i.files[0]||null;renderCertUpload();}
-function clearCert(){arquivoCert=null;renderCertUpload();}
+async function pickCNPJ(i){arquivoCNPJ=await processarEscolha(i.files[0]);renderCNPJUpload();atualizar();}
+function clearCNPJ(){arquivoCNPJ=null;renderCNPJUpload();atualizar();}
+async function pickCert(i){arquivoCert=await processarEscolha(i.files[0]);renderCertUpload();atualizar();}
+function clearCert(){arquivoCert=null;renderCertUpload();atualizar();}
 
 /* ================================================================
    ESCOPOS
@@ -834,7 +872,16 @@ function renderQ(b,p){
 function ensure(id){if(!respostas[id])respostas[id]={status:'',comentario:'',file:null};return respostas[id];}
 function setStatus(id,v){ensure(id).status=v;atualizarQ(id);atualizar();}
 function setCom(id,v){ensure(id).comentario=v;}
-function setEvid(id,inp){ensure(id).file=inp.files[0]||null;atualizarQ(id);atualizar();}
+function setEvid(id,inp){const raw=inp.files[0]||null;
+  if(!raw){ensure(id).file=null;atualizarQ(id);atualizar();return;}
+  processarEscolha(raw).then(f=>{
+    ensure(id).file=f;
+    const blk=document.getElementById('blk_'+id);
+    if(blk){const fn=blk.querySelector('.q-evid .file-name');
+      if(fn)fn.outerHTML='<span class="file-name"><span class="ok-dot"></span>'+esc(f.name)+' · '+fmtMB(f.size)+'<span class="x" onclick="clearEvid(\''+id+'\')">×</span></span>';}
+    atualizarQ(id);atualizar();
+  });
+}
 function clearEvid(id){if(respostas[id])respostas[id].file=null;
   const blk=document.getElementById('blk_'+id);
   if(blk){const fr=blk.querySelector('.q-evid .file-row');
@@ -913,6 +960,30 @@ function atualizar(){
     rc.querySelector('.dot').style.background=f.cor;
     rct.textContent=f.label+' — '+r.respondidas+'/'+r.total+' respondidas';
   }
+
+  // info de anexos (quantidade + tamanho total + aviso de fatiamento)
+  const ininfo=document.getElementById('anexosInfo');
+  if(ininfo){
+    const lista=listarArquivos(); let tot=0; lista.forEach(a=>tot+=a.file.size);
+    if(lista.length===0){ininfo.textContent='';}
+    else{
+      const lotes=Math.max(1,Math.ceil(tot/(CONFIG.MAX_REQUEST_MB*1048576)));
+      ininfo.innerHTML='📎 '+lista.length+' anexo(s) · '+fmtMB(tot)
+        + (lotes>1?' · <strong style="color:var(--yellow)">será enviado em '+lotes+' lotes</strong>':'');
+    }
+  }
+}
+
+/* Lista todos os arquivos anexados no momento (sem o PDF, gerado no envio). */
+function listarArquivos(){
+  const arr=[];
+  if(arquivoCNPJ) arr.push({campo:'Cartão CNPJ', file:arquivoCNPJ});
+  if(arquivoCert) arr.push({campo:'Certificado SGQ', file:arquivoCert});
+  blocosVisiveis().forEach(b=>b.perguntas.forEach(p=>{
+    const r=respostas[qid(b.id,p.c)];
+    if(r&&r.file) arr.push({campo:'Evidência '+p.c, file:r.file});
+  }));
+  return arr;
 }
 
 /* ================================================================
@@ -967,88 +1038,102 @@ function coletar(){
 }
 
 /* ================================================================
-   ENVIO — estratégia em dois POSTs para evitar payload grande
+   ENVIO — payload único multipart, com fatiamento automático
    ----------------------------------------------------------------
-   POST 1 → WEBHOOK_URL        : JSON leve (só texto, sem arquivos)
-   POST 2 → WEBHOOK_ARQUIVOS_URL: um fetch por arquivo (multipart)
-                                   cada requisição carrega o campo
-                                   "protocolo" para vincular ao item
+   • 1 requisição quando tudo cabe em MAX_REQUEST_MB (caso comum).
+   • Se passar do limite, fatia em N lotes:
+       - Lote 1  : campo "dados" (JSON) + 1ª leva de arquivos  → cria o item
+       - Lotes 2+: campo "protocolo" + próxima leva de arquivos → anexa ao item
+   • Tudo amarrado pelo mesmo protocolo → 1 cenário no Make resolve.
+   • Nunca falha em silêncio: o PDF é sempre baixado e, ao final,
+     um resumo informa o que foi e o que não foi enviado.
    ================================================================ */
 
-/* Envia UM arquivo como multipart/form-data para o Make.
-   O Make recebe: file (o arquivo), campo (rótulo), protocolo. */
-async function enviarArquivo(url, campo, file, prot){
-  const fd = new FormData();
+const pausa = ms => new Promise(r=>setTimeout(r,ms));
+
+/* Monta os lotes respeitando o teto de MAX_REQUEST_MB.
+   Um arquivo isolado maior que o teto vira um lote sozinho (tenta mesmo assim). */
+function montarLotes(arquivos){
+  const teto=CONFIG.MAX_REQUEST_MB*1048576;
+  const lotes=[]; let atual=[], soma=0;
+  for(const a of arquivos){
+    const sz=a.file.size;
+    if(atual.length && soma+sz>teto){lotes.push(atual);atual=[];soma=0;}
+    atual.push(a); soma+=sz;
+  }
+  if(atual.length) lotes.push(atual);
+  return lotes;
+}
+
+/* Envia um lote (multipart). incluiDados=true no primeiro lote.
+   Retorna true em sucesso de rede. Faz 1 retry automático. */
+async function enviarLote(arquivos, dadosJSON, prot){
+  const fd=new FormData();
   fd.append('protocolo', prot);
-  fd.append('campo', campo);
-  fd.append('file', file, file.name);
-  await fetch(url, { method:'POST', mode:'no-cors', body: fd });
+  if(dadosJSON) fd.append('dados', dadosJSON);   // só no 1º lote
+  arquivos.forEach((a,idx)=>{
+    // nome de campo previsível p/ o Make: file1, file2... + metadados
+    fd.append('file'+(idx+1), a.file, a.file.name);
+    fd.append('campo'+(idx+1), a.campo);
+  });
+  fd.append('qtd_arquivos', String(arquivos.length));
+  for(let tent=1; tent<=2; tent++){
+    try{ await fetch(CONFIG.WEBHOOK_URL,{method:'POST',mode:'no-cors',body:fd}); return true; }
+    catch(e){ if(tent===2){console.error('Falha no lote:',e); return false;} await pausa(1200); }
+  }
+  return false;
 }
 
 async function enviar(){
-  const erros = validar();
+  const erros=validar();
   if(erros.length){
-    showToast('Pendências:\n• '+erros.slice(0,6).join('\n• ')+(erros.length>6?'\n  …e mais '+(erros.length-6):''), 'error');
+    showToast('Pendências:\n• '+erros.slice(0,6).join('\n• ')+(erros.length>6?'\n  …e mais '+(erros.length-6):''),'error');
     return;
   }
-  const btn = document.getElementById('btnEnviar');
-  btn.disabled = true; btn.textContent = '⏳ Enviando...';
+  const btn=document.getElementById('btnEnviar'); btn.disabled=true; btn.textContent='⏳ Gerando PDF...';
 
-  try {
-    // ---- 1. Gera PDF e baixa localmente ----
-    const pdfBlob = await gerarPDF(true);
+  try{
+    // 1) PDF (sempre baixado localmente — nada se perde mesmo se o envio falhar)
+    const pdfBlob=await gerarPDF(true);
+    const pdfFile=new File([pdfBlob],'Autoavaliacao-AF-'+protocolo+'.pdf',{type:'application/pdf'});
 
-    // ---- 2. POST 1: dados textuais (JSON leve, sem arquivos) ----
-    const dados = coletar();
-    // Informa ao Make quais arquivos virão no POST 2 (para ele saber o que esperar)
-    const arquivosEsperados = [];
-    if(arquivoCNPJ)  arquivosEsperados.push({campo:'Cartão CNPJ',    nome: arquivoCNPJ.name});
-    if(arquivoCert)  arquivosEsperados.push({campo:'Certificado SGQ', nome: arquivoCert.name});
-    blocosVisiveis().forEach(b=>b.perguntas.forEach(p=>{
-      const r=respostas[qid(b.id,p.c)];
-      if(r&&r.file) arquivosEsperados.push({campo:'Evidência '+p.c, nome:r.file.name});
-    }));
-    arquivosEsperados.push({campo:'Relatório PDF', nome:'Autoavaliacao-AF-'+protocolo+'.pdf'});
-    dados.arquivos_esperados = arquivosEsperados;
+    // 2) Monta dados + manifesto (lista do que deveria chegar → reconciliação no Monday)
+    const dados=coletar();
+    const arquivos=listarArquivos();
+    arquivos.push({campo:'Relatório PDF', file:pdfFile});
+    dados.manifesto=arquivos.map(a=>({campo:a.campo, nome:a.file.name, tamanho_bytes:a.file.size}));
+    dados.total_arquivos=arquivos.length;
+    const dadosJSON=JSON.stringify(dados);
+    const prot='AF-'+protocolo;
 
-    if(CONFIG.WEBHOOK_URL){
-      await fetch(CONFIG.WEBHOOK_URL, {
-        method:'POST', mode:'no-cors',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(dados)
-      });
+    if(!CONFIG.WEBHOOK_URL){
+      showToast('PDF gerado localmente.\n(Webhook não configurado em CONFIG.WEBHOOK_URL)','success');
+      return;
     }
 
-    // ---- 3. POST 2: cada arquivo em uma requisição multipart separada ----
-    if(CONFIG.WEBHOOK_ARQUIVOS_URL){
-      const prot = 'AF-' + protocolo;
-      const url  = CONFIG.WEBHOOK_ARQUIVOS_URL;
-      // Arquivos de identificação
-      if(arquivoCNPJ) await enviarArquivo(url, 'Cartão CNPJ',    arquivoCNPJ, prot);
-      if(arquivoCert) await enviarArquivo(url, 'Certificado SGQ', arquivoCert, prot);
-      // Evidências das perguntas
-      for(const b of blocosVisiveis())
-        for(const p of b.perguntas){
-          const r = respostas[qid(b.id,p.c)];
-          if(r && r.file) await enviarArquivo(url, 'Evidência '+p.c, r.file, prot);
-        }
-      // PDF como File (blob → File)
-      const pdfFile = new File([pdfBlob], 'Autoavaliacao-AF-'+protocolo+'.pdf', {type:'application/pdf'});
-      await enviarArquivo(url, 'Relatório PDF', pdfFile, prot);
+    // 3) Fatiamento e envio sequencial
+    const lotes=montarLotes(arquivos);
+    let okCount=0; const falhas=[];
+
+    for(let i=0;i<lotes.length;i++){
+      btn.textContent = lotes.length>1 ? ('⏳ Enviando lote '+(i+1)+'/'+lotes.length+'...') : '⏳ Enviando...';
+      const ok=await enviarLote(lotes[i], i===0?dadosJSON:null, prot);
+      if(ok){ okCount+=lotes[i].length; }
+      else  { lotes[i].forEach(a=>falhas.push(a.campo)); }
+      if(i<lotes.length-1) await pausa(CONFIG.ENVIO_DELAY_MS); // dá tempo do Make criar o item
     }
 
-    // ---- 4. Feedback ----
-    if(CONFIG.WEBHOOK_URL || CONFIG.WEBHOOK_ARQUIVOS_URL){
-      showToast('Autoavaliação enviada com sucesso!', 'success');
-    } else {
-      showToast('PDF gerado localmente.\n(Webhooks não configurados em CONFIG)', 'success');
+    // 4) Resumo honesto
+    if(falhas.length===0){
+      showToast('✓ Autoavaliação enviada!\n'+okCount+' arquivo(s) em '+lotes.length+' lote(s).','success');
+    }else{
+      showToast('Envio parcial: '+okCount+' ok, '+falhas.length+' falhou(aram).\nNão enviados: '+falhas.slice(0,4).join(', ')+(falhas.length>4?'…':'')+'\nO PDF foi baixado — encaminhe os pendentes manualmente.','error');
     }
-
-  } catch(e){
-    console.error('Erro no envio:', e);
-    showToast('Erro ao enviar: ' + (e.message||e), 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = '⬆ Enviar Autoavaliação';
+  }catch(e){
+    console.error('Erro no envio:',e);
+    showToast('Erro ao enviar: '+(e.message||e)+'\nO PDF foi baixado localmente.','error');
+  }finally{
+    btn.disabled=false; btn.textContent='⬆ Enviar Autoavaliação';
   }
 }
 
