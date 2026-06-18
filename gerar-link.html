@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Gerador de Link — Autoavaliação de Fornecedores</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --red:#C0392B;--red2:#961c13;--dark:#1A1210;
+  --bg:#F2F1ED;--surface:#FFFFFF;--surface2:#F8F7F5;
+  --border:#E0DBD5;--border2:#C5BDB5;
+  --text:#18171A;--muted:#6A6760;
+  --accent-lt:#FDF0EF;--radius:8px;--radius-lg:12px;
+  --green:#2E7D32;--green-bg:#EAF6EB;
+}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+.site-header{background:#fff;border-bottom:3px solid var(--red);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.header-inner{max-width:700px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:.7rem 1.5rem}
+.header-logo img{height:44px;width:auto;display:block}
+.header-right{text-align:right}
+.header-right .title{font-size:15px;font-weight:700;color:var(--dark)}
+.header-right .sub{font-size:11px;color:var(--muted);margin-top:2px}
+.wrap{max-width:700px;margin:0 auto;padding:1.8rem 1rem 5rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:1.1rem;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.card-head{background:var(--dark);padding:.65rem 1.3rem;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+.card-head h2{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#D4C8C4}
+.card-body{padding:1.25rem 1.3rem}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.field label{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.field input{border:1px solid var(--border2);border-radius:var(--radius);padding:9px 11px;font-size:14px;font-family:inherit;color:var(--text);background:var(--surface);width:100%}
+.field input:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px rgba(192,57,43,.12)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border:none;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;transition:all .13s;font-family:inherit}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:var(--red2)}
+.result{margin-top:6px;display:none}
+.result.show{display:block}
+.result-box{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px}
+.result-box input{flex:1;border:none;background:transparent;font-size:13px;color:var(--text);font-family:"Courier New",monospace}
+.result-box input:focus{outline:none}
+.copied{font-size:11.5px;color:var(--green);font-weight:600;margin-top:6px;display:none}
+.copied.show{display:block}
+.hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:4px}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="PERPEC - LOGO PRINCIPAL.png" alt="Perpec Oilfield Supply" onerror="this.style.display='none'"/>
+    </div>
+    <div class="header-right">
+      <div class="title">Gerador de Link do Fornecedor</div>
+      <div class="sub">Uso interno — Perpec</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="card">
+    <div class="card-head"><h2>Dados do Fornecedor</h2></div>
+    <div class="card-body">
+      <div class="field">
+        <label>Nome do Fornecedor (apenas para sua referência)</label>
+        <input type="text" id="nomeFornecedor" placeholder="Ex.: Indústria Metal Sul Ltda">
+      </div>
+      <div class="field">
+        <label>Link da Pasta de Evidências deste Fornecedor</label>
+        <input type="text" id="linkPasta" placeholder="Cole aqui o link da pasta (Monday, Drive etc.)">
+      </div>
+      <button class="btn btn-red" onclick="gerar()">Gerar Link do Formulário</button>
+
+      <div class="result" id="resultWrap">
+        <div class="divider" style="height:1px;background:var(--border);margin:16px 0"></div>
+        <label style="font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.02em">Link pronto para enviar ao fornecedor</label>
+        <div class="result-box" style="margin-top:6px">
+          <input type="text" id="linkGerado" readonly>
+          <button class="btn btn-red" onclick="copiar()">Copiar</button>
+        </div>
+        <div class="copied" id="copiedMsg">✓ Link copiado para a área de transferência</div>
+        <p class="hint">Envie este link por e-mail ao fornecedor. Ao abrir, o formulário já estará vinculado à pasta de evidências dele.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+function basePath(){
+  // mesma pasta deste arquivo, troca gerar-link.html por index.html
+  return window.location.href.replace(/gerar-link\.html.*$/,'index.html');
+}
+function gerar(){
+  const pasta=document.getElementById('linkPasta').value.trim();
+  if(!pasta){ alert('Cole o link da pasta de evidências do fornecedor.'); return; }
+  const url=basePath()+'?pasta='+encodeURIComponent(pasta);
+  document.getElementById('linkGerado').value=url;
+  document.getElementById('resultWrap').classList.add('show');
+  document.getElementById('copiedMsg').classList.remove('show');
+}
+function copiar(){
+  const inp=document.getElementById('linkGerado');
+  inp.select(); inp.setSelectionRange(0,99999);
+  navigator.clipboard && navigator.clipboard.writeText(inp.value);
+  document.getElementById('copiedMsg').classList.add('show');
+}
+</script>
+
+</body>
+</html>
