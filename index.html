@@ -14,12 +14,12 @@
   const CONFIG = {
     // URL única do webhook Make — recebe tudo num multipart/form-data.
     // O Make consegue ler o campo "dados" (JSON) e os arquivos no mesmo módulo.
-    WEBHOOK_URL: "https://hook.us2.make.com/s0auqaxfdcxd4udgehn8gnceqk7r6z7w",
+    WEBHOOK_URL: "",
 
     // ---- Robustez de envio de arquivos ----
-    MAX_REQUEST_MB: 25,   // teto por requisição. Se o total passar, fatia em vários POSTs.
-    MAX_FILE_MB:    20,   // alerta se um único arquivo passar disso (após compressão).
-    ENVIO_DELAY_MS: 1800, // pausa entre lotes (dá tempo do Make criar o item antes dos arquivos).
+    MAX_REQUEST_MB: 4,    // teto POR requisição (conservador p/ caber no webhook do Make).
+    MAX_FILE_MB:    8,    // alerta se um único arquivo passar disso (após compressão).
+    ENVIO_DELAY_MS: 2000, // pausa após enviar os dados (dá tempo do Make criar o item).
     IMG_MAX_PX:     1800, // redimensiona imagens grandes (maior lado) antes de anexar.
     IMG_QUALITY:    0.72, // qualidade JPEG da recompressão de imagens.
 
@@ -1038,15 +1038,14 @@ function coletar(){
 }
 
 /* ================================================================
-   ENVIO — payload único multipart, com fatiamento automático
+   ENVIO — dados primeiro (leve), depois arquivos em lotes pequenos
    ----------------------------------------------------------------
-   • 1 requisição quando tudo cabe em MAX_REQUEST_MB (caso comum).
-   • Se passar do limite, fatia em N lotes:
-       - Lote 1  : campo "dados" (JSON) + 1ª leva de arquivos  → cria o item
-       - Lotes 2+: campo "protocolo" + próxima leva de arquivos → anexa ao item
-   • Tudo amarrado pelo mesmo protocolo → 1 cenário no Make resolve.
-   • Nunca falha em silêncio: o PDF é sempre baixado e, ao final,
-     um resumo informa o que foi e o que não foi enviado.
+   Evita o erro "content too large": a requisição que cria o item
+   não carrega arquivos, e os arquivos vão em lotes ≤ MAX_REQUEST_MB.
+     • Req 1   : "dados" (JSON) + protocolo            → cria o item
+     • Req 2..N: protocolo + alguns arquivos (≤ teto)  → anexa ao item
+   Tudo amarrado pelo protocolo → 1 cenário (Router) no Make.
+   Nunca falha em silêncio: o PDF é sempre baixado e há resumo final.
    ================================================================ */
 
 const pausa = ms => new Promise(r=>setTimeout(r,ms));
@@ -1065,22 +1064,21 @@ function montarLotes(arquivos){
   return lotes;
 }
 
-/* Envia um lote (multipart). incluiDados=true no primeiro lote.
-   Retorna true em sucesso de rede. Faz 1 retry automático. */
-async function enviarLote(arquivos, dadosJSON, prot){
+/* Envia uma requisição multipart. Faz 1 retry automático.
+   - dadosJSON presente → requisição que cria o item (sem arquivos)
+   - arquivos presente   → requisição de anexos (mesmo nome "file" = array) */
+async function enviarRequisicao(arquivos, dadosJSON, prot){
   const fd=new FormData();
   fd.append('protocolo', prot);
-  if(dadosJSON) fd.append('dados', dadosJSON);   // só no 1º lote
-  // Mesmo nome de campo repetido ("file"/"campo") → o Make trata como ARRAY,
-  // permitindo um único Iterator no cenário (em vez de file1, file2... soltos).
-  arquivos.forEach(a=>{
-    fd.append('file', a.file, a.file.name);
+  if(dadosJSON) fd.append('dados', dadosJSON);
+  (arquivos||[]).forEach(a=>{
+    fd.append('file', a.file, a.file.name); // nome repetido → Make trata como array
     fd.append('campo', a.campo);
   });
-  fd.append('qtd_arquivos', String(arquivos.length));
+  fd.append('qtd_arquivos', String((arquivos||[]).length));
   for(let tent=1; tent<=2; tent++){
     try{ await fetch(CONFIG.WEBHOOK_URL,{method:'POST',mode:'no-cors',body:fd}); return true; }
-    catch(e){ if(tent===2){console.error('Falha no lote:',e); return false;} await pausa(1200); }
+    catch(e){ if(tent===2){console.error('Falha na requisição:',e); return false;} await pausa(1200); }
   }
   return false;
 }
@@ -1098,7 +1096,7 @@ async function enviar(){
     const pdfBlob=await gerarPDF(true);
     const pdfFile=new File([pdfBlob],'Autoavaliacao-AF-'+protocolo+'.pdf',{type:'application/pdf'});
 
-    // 2) Monta dados + manifesto (lista do que deveria chegar → reconciliação no Monday)
+    // 2) Dados + manifesto (lista do que deve chegar → reconciliação no Monday)
     const dados=coletar();
     const arquivos=listarArquivos();
     arquivos.push({campo:'Relatório PDF', file:pdfFile});
@@ -1112,23 +1110,28 @@ async function enviar(){
       return;
     }
 
-    // 3) Fatiamento e envio sequencial
+    // 3) Requisição 1 — só os dados (cria o item, sem arquivos)
+    btn.textContent='⏳ Enviando dados...';
+    const okDados=await enviarRequisicao([], dadosJSON, prot);
+    await pausa(CONFIG.ENVIO_DELAY_MS); // tempo para o Make criar o item
+
+    // 4) Requisições de arquivos em lotes pequenos
     const lotes=montarLotes(arquivos);
     let okCount=0; const falhas=[];
-
     for(let i=0;i<lotes.length;i++){
-      btn.textContent = lotes.length>1 ? ('⏳ Enviando lote '+(i+1)+'/'+lotes.length+'...') : '⏳ Enviando...';
-      const ok=await enviarLote(lotes[i], i===0?dadosJSON:null, prot);
-      if(ok){ okCount+=lotes[i].length; }
-      else  { lotes[i].forEach(a=>falhas.push(a.campo)); }
-      if(i<lotes.length-1) await pausa(CONFIG.ENVIO_DELAY_MS); // dá tempo do Make criar o item
+      btn.textContent='⏳ Enviando arquivos '+(i+1)+'/'+lotes.length+'...';
+      const ok=await enviarRequisicao(lotes[i], null, prot);
+      if(ok){ okCount+=lotes[i].length; } else { lotes[i].forEach(a=>falhas.push(a.campo)); }
+      if(i<lotes.length-1) await pausa(700);
     }
 
-    // 4) Resumo honesto
-    if(falhas.length===0){
-      showToast('✓ Autoavaliação enviada!\n'+okCount+' arquivo(s) em '+lotes.length+' lote(s).','success');
+    // 5) Resumo honesto
+    if(!okDados){
+      showToast('Falha ao enviar os dados ao Make.\nO PDF foi baixado. Verifique a URL do webhook e tente novamente.','error');
+    }else if(falhas.length===0){
+      showToast('✓ Autoavaliação enviada!\nDados + '+okCount+' arquivo(s).','success');
     }else{
-      showToast('Envio parcial: '+okCount+' ok, '+falhas.length+' falhou(aram).\nNão enviados: '+falhas.slice(0,4).join(', ')+(falhas.length>4?'…':'')+'\nO PDF foi baixado — encaminhe os pendentes manualmente.','error');
+      showToast('Envio parcial: dados ok, '+okCount+' arquivo(s) ok, '+falhas.length+' falhou(aram).\nNão enviados: '+falhas.slice(0,4).join(', ')+(falhas.length>4?'…':'')+'\nO PDF foi baixado — encaminhe os pendentes manualmente.','error');
     }
   }catch(e){
     console.error('Erro no envio:',e);
