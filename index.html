@@ -430,6 +430,25 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
       </div>
     </div>
 
+    <!-- ===== CIÊNCIA DE EVIDÊNCIAS ===== -->
+    <div class="card">
+      <div class="card-head">
+        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:#C0392B;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <h2>Ciência sobre Envio de Evidências</h2>
+      </div>
+      <div class="card-body">
+        <div class="lgpd-note" style="margin-bottom:16px">
+          O processo de qualificação prevê a análise das evidências documentais que comprovem as respostas informadas neste questionário. Respostas classificadas como <strong>Conforme</strong> ou <strong>Regular</strong> devem ter evidência correspondente enviada na pasta de evidências vinculada a este formulário, ou justificativa de dispensa registrada no campo de comentários do respectivo item.
+          <br><br>
+          <strong>A ausência de evidências suficientes, sem justificativa aceita, implicará na descontinuação do processo de qualificação.</strong>
+        </div>
+        <label class="lgpd-accept" id="cienciEvidBox">
+          <input type="checkbox" id="cienciaEvidCheck" onchange="document.getElementById('cienciEvidBox').classList.toggle('ok',this.checked)">
+          <span>Estou ciente de que o processo de qualificação poderá ser descontinuado caso as evidências ou justificativas de dispensa não sejam apresentadas. <span class="req">*</span></span>
+        </label>
+      </div>
+    </div>
+
     <!-- ===== AÇÕES ===== -->
     <div id="anexosInfo" style="text-align:center;font-size:12px;color:var(--muted);margin:-.4rem 0 .9rem"></div>
     <div class="act-bar">
@@ -1206,6 +1225,7 @@ function val(id){return (document.getElementById(id).value||'').trim();}
 function validar(){
   const erros=[];
   if(!document.getElementById('lgpdCheck').checked) erros.push('Aceite de privacidade (LGPD)');
+  if(!document.getElementById('cienciaEvidCheck').checked) erros.push('Ciência sobre envio de evidências');
   [['razaoSocial','Razão Social'],['nomeFantasia','Nome Fantasia'],['cnpj','CNPJ'],['endereco','Endereço'],
    ['cidade','Cidade'],['estado','Estado (UF)'],['responsavel','Responsável'],['cargo','Cargo'],
    ['email','E-mail'],['telefone','Telefone']].forEach(([id,lbl])=>{if(!val(id))erros.push(lbl);});
@@ -1456,6 +1476,7 @@ function limpar(){
   respostas={}; if(!escoposBloqueadosURL) escoposSel=[]; arquivoCNPJ=null; arquivoCert=null;
   document.querySelectorAll('#conteudo input[type="text"]:not([readonly]),#conteudo input[type="email"]').forEach(el=>el.value='');
   document.querySelectorAll('input[name="certSGQ"]').forEach(el=>el.checked=false);
+  const ce=document.getElementById('cienciaEvidCheck'); if(ce){ce.checked=false;document.getElementById('cienciEvidBox').classList.remove('ok');}
   document.getElementById('certUploadWrap').style.display='none';
   carregarRastreabilidade(); definirDataHora();
   renderCNPJUpload(); renderCertUpload(); renderEscopos(); renderPerguntas(); atualizar();
