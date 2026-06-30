@@ -173,6 +173,8 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 .escopo-chip:hover{border-color:#9A9087;background:var(--surface2)}
 .escopo-chip input{width:17px;height:17px;accent-color:var(--red);cursor:pointer;flex-shrink:0}
 .escopo-chip.sel{border-color:var(--red);background:var(--accent-lt)}
+.escopo-chip.bloqueado{pointer-events:none}
+.escopo-chip.bloqueado input{cursor:default}
 .escopo-chip .esc-name{font-weight:600;color:var(--text)}
 .escopo-chip .esc-tag{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:20px;margin-left:auto}
 .esc-tag.produto{background:#EEF2FF;color:#3D5AC0}
@@ -252,9 +254,8 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
   <div class="doc-strip">
     <div class="doc-strip-inner">
       <div>
-        <span class="doc-code-label">Protocolo</span>
-        <span class="doc-code-prefix">RQF</span>
-        <span class="doc-code-val" id="hdrProtocolo">—</span>
+        <span class="doc-code-label">Rastreabilidade</span>
+        <span class="doc-code-val" id="hdrRastreabilidade">—</span>
       </div>
       <span class="doc-meta" id="docRef">—</span>
       <span class="doc-req">* Campos obrigatórios</span>
@@ -339,7 +340,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
       </div>
       <div class="card-body">
         <div class="g2" style="margin-bottom:13px">
-          <div class="field"><label>Protocolo</label><input type="text" id="protocoloField" readonly></div>
+          <div class="field"><label>Rastreabilidade</label><input type="text" id="rastreabilidadeField" readonly></div>
           <div class="field"><label>Data e Hora do Preenchimento</label><input type="text" id="dataHoraField" readonly></div>
         </div>
         <div class="g2" style="margin-bottom:13px">
@@ -403,7 +404,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
         <span class="count-pill" id="escCount">0 selecionados</span>
       </div>
       <div class="card-body">
-        <p class="lgpd-note" style="margin-bottom:12px">Selecione todos os escopos aplicáveis ao seu fornecimento. As perguntas técnicas serão carregadas conforme a sua seleção.</p>
+        <p class="lgpd-note" id="escopoDescP" style="margin-bottom:12px">Selecione todos os escopos aplicáveis ao seu fornecimento. As perguntas técnicas serão carregadas conforme a sua seleção.</p>
         <div class="escopo-grid" id="escopoGrid"></div>
       </div>
     </div>
@@ -674,7 +675,8 @@ let blocosMap = {};                 // id -> bloco
 let escoposSel = [];                // nomes de escopos selecionados
 let respostas = {};                 // qid -> {status, comentario}
 let arquivoCNPJ = null, arquivoCert = null;
-let protocolo = "";
+let rastreabilidade = "";
+let escoposBloqueadosURL = false;
 let dataHoraPreenchimento = "";
 let linkPastaEvidencias = "";
 const PROD_GERAL_ID = "5";          // id do bloco "Produção Geral"
@@ -702,7 +704,7 @@ function maskTel(el){let v=el.value.replace(/\D/g,'').slice(0,11);
    ================================================================ */
 window.onload = async () => {
   document.getElementById('docRef').textContent = CONFIG.DOC_REF;
-  gerarProtocolo();
+  carregarRastreabilidade();
   definirDataHora();
   carregarLinkPasta();
   await carregarEscoposExternos();
@@ -710,20 +712,32 @@ window.onload = async () => {
   await carregarTextosExternos();
   BANCO_PERGUNTAS.forEach(b=>blocosMap[b.id]=b);
   renderCNPJUpload(); renderCertUpload();
-  renderEscopos(); renderPerguntas(); atualizar();
+  carregarEscoposDaURL(); renderEscopos(); renderPerguntas(); atualizar();
   carregarLogo();
 };
 
-/* Protocolo no formato RQF-XXX-YY (XXX = nº aleatório, YY = ano atual) */
-function gerarProtocolo(){
-  const ano=String(new Date().getFullYear()).slice(-2);
-  const num=String(Math.floor(Math.random()*900)+100); // 100-999
-  protocolo = num+'-'+ano;
-  atualizarProtocolo();
+/* Número de rastreabilidade — definido internamente e embutido no link via ?ras= */
+function carregarRastreabilidade(){
+  try{ const qp=new URLSearchParams(window.location.search); rastreabilidade=(qp.get('ras')||'').trim(); }
+  catch(e){ rastreabilidade=''; }
+  atualizarRastreabilidade();
 }
-function atualizarProtocolo(){
-  document.getElementById('hdrProtocolo').textContent=protocolo;
-  const f=document.getElementById('protocoloField'); if(f) f.value='RQF-'+protocolo;
+function atualizarRastreabilidade(){
+  document.getElementById('hdrRastreabilidade').textContent=rastreabilidade||'—';
+  const f=document.getElementById('rastreabilidadeField'); if(f) f.value=rastreabilidade;
+}
+
+/* Escopos pré-definidos no link via ?escopos=nome1|nome2|... */
+function carregarEscoposDaURL(){
+  try{
+    const qp=new URLSearchParams(window.location.search);
+    const param=(qp.get('escopos')||'').trim();
+    if(!param){ escoposBloqueadosURL=false; return; }
+    const nomes=param.split('|').map(s=>s.trim()).filter(Boolean);
+    if(!nomes.length){ escoposBloqueadosURL=false; return; }
+    escoposSel=nomes;
+    escoposBloqueadosURL=true;
+  }catch(e){ escoposBloqueadosURL=false; }
 }
 
 /* Data/hora do preenchimento — fixada automaticamente ao abrir o formulário */
@@ -983,11 +997,16 @@ function renderEscopos(){
   const grid=document.getElementById('escopoGrid');
   grid.innerHTML=ESCOPOS.map((e,i)=>{
     const sel=escoposSel.includes(e.nome);
-    return '<label class="escopo-chip'+(sel?' sel':'')+'" id="chip_'+i+'">'
-      +'<input type="checkbox" '+(sel?'checked':'')+' onchange="toggleEscopo('+i+',this.checked)">'
+    const locked=escoposBloqueadosURL;
+    return '<label class="escopo-chip'+(sel?' sel':'')+(locked?' bloqueado':'')+'" id="chip_'+i+'">'
+      +'<input type="checkbox" '+(sel?'checked':'')+(locked?' disabled':' onchange="toggleEscopo('+i+',this.checked)"')+'>'
       +'<span class="esc-name">'+esc(e.nome)+'</span>'
       +'<span class="esc-tag '+e.tipo+'">'+(e.tipo==='produto'?'Produto':'Serviço')+'</span></label>';
   }).join('');
+  const descP=document.getElementById('escopoDescP');
+  if(descP) descP.textContent=escoposBloqueadosURL
+    ?'Escopo pré-definido pelo responsável Perpec que enviou este formulário.'
+    :'Selecione todos os escopos aplicáveis ao seu fornecimento. As perguntas técnicas serão carregadas conforme a sua seleção.';
   document.getElementById('escCount').textContent=escoposSel.length+' selecionado'+(escoposSel.length===1?'':'s');
 }
 function toggleEscopo(i,checked){
@@ -1220,7 +1239,7 @@ function coletar(){
       sem_evidencia_comentada:e?!!e.semEvidencia:false, tem_comentario:!!(st.comentario&&st.comentario.trim()), comentario:st.comentario||''});
   }));
   return {
-    protocolo:'RQF-'+protocolo,
+    rastreabilidade: rastreabilidade,
     documento_ref:CONFIG.DOC_REF,
     data_hora:dataHoraPreenchimento,
     link_pasta_evidencias:linkPastaEvidencias,
@@ -1255,7 +1274,7 @@ async function enviar(){
   try{
     // 1) Relatório PDF (comprimido) — sempre baixado localmente também
     const pdfBlob=await gerarPDF(true);
-    const pdfFile=new File([pdfBlob],'Autoavaliacao-RQF-'+protocolo+'.pdf',{type:'application/pdf'});
+    const pdfFile=new File([pdfBlob],'Autoavaliacao-'+rastreabilidade+'.pdf',{type:'application/pdf'});
 
     // 2) Os 3 únicos arquivos do envio
     const arquivos=listarArquivos();
@@ -1274,7 +1293,7 @@ async function enviar(){
     // 4) UM único POST multipart ao Make, com dados + binários dos 3 arquivos
     btn.textContent='⏳ Enviando...';
     const fd=new FormData();
-    fd.append('protocolo', dados.protocolo);
+    fd.append('rastreabilidade', dados.rastreabilidade);
     fd.append('link_pasta_evidencias', linkPastaEvidencias);
     fd.append('dados', dadosStr);
     fd.append('cartao_cnpj', arquivoCNPJ, arquivoCNPJ.name);
@@ -1336,7 +1355,7 @@ async function gerarPDF(returnBlob){
     if(logoB64){try{doc.addImage(logoB64,'PNG',ML,3,38,10);}catch(e){}}
     setD(RED);doc.setLineWidth(0.8);doc.line(0,18,W,18);
     doc.setFontSize(13);doc.setFont('helvetica','bold');setC(DARK);doc.text('Autoavaliação de Fornecedor',W-MR,9,{align:'right'});
-    doc.setFontSize(7.5);doc.setFont('helvetica','normal');setC(GRAY);doc.text(d.protocolo+'  •  '+d.data_hora,W-MR,15,{align:'right'});
+    doc.setFontSize(7.5);doc.setFont('helvetica','normal');setC(GRAY);doc.text(d.rastreabilidade+'  •  '+d.data_hora,W-MR,15,{align:'right'});
   }
   header();
   let y=24;
@@ -1424,7 +1443,7 @@ async function gerarPDF(returnBlob){
   doc.text('* “Conforme” sem evidência comentada — nota provisória, sujeita a conferência da evidência na auditoria.',ML,y+3);
 
   const tot=doc.internal.getNumberOfPages();for(let i=1;i<=tot;i++){doc.setPage(i);footer();}
-  const nome='Autoavaliacao-RQF-'+protocolo+'.pdf';
+  const nome='Autoavaliacao-'+rastreabilidade+'.pdf';
   if(returnBlob){doc.save(nome);return doc.output('blob');}
   doc.save(nome);
 }
@@ -1434,11 +1453,11 @@ async function gerarPDF(returnBlob){
    ================================================================ */
 function limpar(){
   if(!confirm('Limpar todo o formulário?'))return;
-  respostas={}; escoposSel=[]; arquivoCNPJ=null; arquivoCert=null;
+  respostas={}; if(!escoposBloqueadosURL) escoposSel=[]; arquivoCNPJ=null; arquivoCert=null;
   document.querySelectorAll('#conteudo input[type="text"]:not([readonly]),#conteudo input[type="email"]').forEach(el=>el.value='');
   document.querySelectorAll('input[name="certSGQ"]').forEach(el=>el.checked=false);
   document.getElementById('certUploadWrap').style.display='none';
-  gerarProtocolo(); definirDataHora();
+  carregarRastreabilidade(); definirDataHora();
   renderCNPJUpload(); renderCertUpload(); renderEscopos(); renderPerguntas(); atualizar();
   showToast('Formulário limpo.');
 }
