@@ -1193,13 +1193,28 @@ function temCertSGQValidoComEvidencia(){
 
 function calcular(){
   const blocos=blocosVisiveis();
-  let sgq=[],tec=[],total=0,respondidas=0;
+  let sgq=[],tec=[],total=0,respondidas=0,tecTotal=0,tecNA=0;
   blocos.forEach(b=>b.perguntas.forEach(p=>{
     total++; const id=qid(b.id,p.c); const e=efetivo(id);
-    if(e){respondidas++; if(!e.na)(b.bloco_nota==='SGQ'?sgq:tec).push(e.pts);}
+    if(b.bloco_nota==='TECNICA') tecTotal++;
+    if(e){
+      respondidas++;
+      if(!e.na)(b.bloco_nota==='SGQ'?sgq:tec).push(e.pts);
+      else if(b.bloco_nota==='TECNICA') tecNA++;
+    }
   }));
   const media=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
-  const nSGQ=media(sgq), nTec=media(tec);
+  const nSGQ=media(sgq);
+  // Nota técnica:
+  //   • sem perguntas técnicas visíveis → null (excluída)
+  //   • há respostas pontuáveis         → média normal
+  //   • todas as perguntas marcadas NA  → null (excluída por inaplicabilidade)
+  //   • perguntas existem mas nada pontuado (vazio ou misto NA+vazio) → 0
+  let nTec;
+  if     (tecTotal===0)                     nTec=null;
+  else if(tec.length>0)                     nTec=media(tec);
+  else if(tecNA===tecTotal && tecNA>0)      nTec=null;
+  else                                      nTec=0;
   let nFinal=null;
   if(nSGQ!=null&&nTec!=null) nFinal=SCORING.PESO_SGQ*nSGQ+SCORING.PESO_TECNICA*nTec;
   else if(nSGQ!=null) nFinal=nSGQ; else if(nTec!=null) nFinal=nTec;
