@@ -206,6 +206,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 .q-warn{display:none;margin-top:8px;font-size:11.5px;font-weight:600;color:var(--yellow);background:var(--yellow-bg);border:1px solid var(--yellow-bd);border-radius:6px;padding:6px 9px}
 .q-warn.show{display:block}
 .q-warn.err{color:var(--red);background:var(--accent-lt);border-color:#E8B8B0}
+.q-warn.ok{color:var(--green);background:var(--green-bg);border-color:var(--green-bd)}
 .bloco-sub{font-size:11px;color:var(--muted);margin:-.5rem 0 .9rem;font-weight:500}
 .bloco-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-left:auto;flex-shrink:0}
 .bloco-tag.sgq{background:rgba(192,57,43,.2);color:#E08070}
@@ -696,6 +697,7 @@ let respostas = {};                 // qid -> {status, comentario}
 let arquivoCNPJ = null, arquivoCert = null;
 let rastreabilidade = "";
 let escoposBloqueadosURL = false;
+let sgqAutoFilled = false;
 let dataHoraPreenchimento = "";
 let linkPastaEvidencias = "";
 const PROD_GERAL_ID = "5";          // id do bloco "Produção Geral"
@@ -946,8 +948,34 @@ function toggleLGPD(){
 function toggleCert(){
   const sim=document.getElementById('cert_sim').checked;
   document.getElementById('certUploadWrap').style.display=sim?'block':'none';
-  if(!sim){arquivoCert=null;renderCertUpload();}
+  if(sim){
+    autoFillSGQ();
+  }else{
+    arquivoCert=null; renderCertUpload();
+    if(sgqAutoFilled) resetSGQAutoFill();
+  }
   atualizar();
+}
+
+/* Preenche todas as perguntas SGQ como Conforme ao selecionar "Sim" no certificado. */
+function autoFillSGQ(){
+  BANCO_PERGUNTAS.filter(b=>b.grupo==='SGQ').forEach(b=>
+    b.perguntas.forEach(p=>{
+      const id=qid(b.id,p.c);
+      respostas[id]={status:'C', comentario:(respostas[id]||{}).comentario||''};
+    })
+  );
+  sgqAutoFilled=true;
+  renderPerguntas();
+}
+
+/* Remove o auto-preenchimento SGQ ao mudar para "Não". */
+function resetSGQAutoFill(){
+  BANCO_PERGUNTAS.filter(b=>b.grupo==='SGQ').forEach(b=>
+    b.perguntas.forEach(p=>{ delete respostas[qid(b.id,p.c)]; })
+  );
+  sgqAutoFilled=false;
+  renderPerguntas();
 }
 
 /* ================================================================
@@ -1014,19 +1042,29 @@ function clearCert(){arquivoCert=null;renderCertUpload();atualizar();}
    ================================================================ */
 function renderEscopos(){
   const grid=document.getElementById('escopoGrid');
+  const descP=document.getElementById('escopoDescP');
+  const countEl=document.getElementById('escCount');
+
+  if(!escoposBloqueadosURL){
+    // Link sem escopo pré-definido — impede seleção manual pelo fornecedor
+    grid.innerHTML='<div class="q-warn show" style="margin:4px 0 0">'
+      +'⚠ Escopo não definido. Utilize o link específico enviado pelo comprador Perpec para acessar este questionário.'
+      +'</div>';
+    if(descP) descP.textContent='';
+    if(countEl) countEl.textContent='—';
+    return;
+  }
+
+  // Escopo vindo do link — exibe chips bloqueados (somente leitura)
   grid.innerHTML=ESCOPOS.map((e,i)=>{
     const sel=escoposSel.includes(e.nome);
-    const locked=escoposBloqueadosURL;
-    return '<label class="escopo-chip'+(sel?' sel':'')+(locked?' bloqueado':'')+'" id="chip_'+i+'">'
-      +'<input type="checkbox" '+(sel?'checked':'')+(locked?' disabled':' onchange="toggleEscopo('+i+',this.checked)"')+'>'
+    return '<label class="escopo-chip'+(sel?' sel':'')+' bloqueado" id="chip_'+i+'">'
+      +'<input type="checkbox" '+(sel?'checked':'')+' disabled>'
       +'<span class="esc-name">'+esc(e.nome)+'</span>'
       +'<span class="esc-tag '+e.tipo+'">'+(e.tipo==='produto'?'Produto':'Serviço')+'</span></label>';
   }).join('');
-  const descP=document.getElementById('escopoDescP');
-  if(descP) descP.textContent=escoposBloqueadosURL
-    ?'Escopo pré-definido pelo responsável Perpec que enviou este formulário.'
-    :'Selecione todos os escopos aplicáveis ao seu fornecimento. As perguntas técnicas serão carregadas conforme a sua seleção.';
-  document.getElementById('escCount').textContent=escoposSel.length+' selecionado'+(escoposSel.length===1?'':'s');
+  if(descP) descP.textContent='Escopo pré-definido pelo responsável Perpec que enviou este formulário.';
+  if(countEl) countEl.textContent=escoposSel.length+' selecionado'+(escoposSel.length===1?'':'s');
 }
 function toggleEscopo(i,checked){
   const nome=ESCOPOS[i].nome;
@@ -1061,13 +1099,18 @@ function renderPerguntas(){
     cont.innerHTML='<div class="card"><div class="card-body"><div class="empty-state">Selecione ao menos um escopo acima para carregar o questionário. As perguntas de SGQ aparecerão automaticamente.</div></div></div>';
     return;
   }
-  let html='';
+  let html=''; let sgqBannerShown=false;
   blocos.forEach(b=>{
     const tag = b.bloco_nota==='SGQ'
       ? '<span class="bloco-tag sgq">SGQ</span>'
       : '<span class="bloco-tag tec">Técnica</span>';
-    const sub = b.grupo==='PRODUCAO_GERAL'
-      ? '<div class="bloco-sub">Carregado automaticamente para fornecedores de produtos/processos produtivos.</div>' : '';
+    let sub='';
+    if(b.bloco_nota==='SGQ' && sgqAutoFilled && !sgqBannerShown){
+      sub='<div class="q-warn ok show" style="margin-bottom:14px">✓ Seção preenchida automaticamente como <strong>Conforme</strong> com base no certificado de SGQ informado. Ajuste itens individuais se necessário.</div>';
+      sgqBannerShown=true;
+    }
+    if(b.grupo==='PRODUCAO_GERAL')
+      sub+='<div class="bloco-sub">Carregado automaticamente para fornecedores de produtos/processos produtivos.</div>';
     html+='<div class="card"><div class="card-head">'
       +'<svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'
       +'<h2>'+esc(b.id+' — '+b.categoria)+'</h2>'+tag+'</div><div class="card-body">'+sub;
@@ -1473,7 +1516,7 @@ async function gerarPDF(returnBlob){
    ================================================================ */
 function limpar(){
   if(!confirm('Limpar todo o formulário?'))return;
-  respostas={}; if(!escoposBloqueadosURL) escoposSel=[]; arquivoCNPJ=null; arquivoCert=null;
+  respostas={}; sgqAutoFilled=false; if(!escoposBloqueadosURL) escoposSel=[]; arquivoCNPJ=null; arquivoCert=null;
   document.querySelectorAll('#conteudo input[type="text"]:not([readonly]),#conteudo input[type="email"]').forEach(el=>el.value='');
   document.querySelectorAll('input[name="certSGQ"]').forEach(el=>el.checked=false);
   const ce=document.getElementById('cienciaEvidCheck'); if(ce){ce.checked=false;document.getElementById('cienciEvidBox').classList.remove('ok');}
