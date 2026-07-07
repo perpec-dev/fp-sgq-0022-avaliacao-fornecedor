@@ -12,12 +12,12 @@
 <!-- ============================================================= -->
 <script>
   const CONFIG = {
-    // Fontes de dados opcionais no repositório Git. Se ausentes,
-    // o portal usa os bancos embutidos mais abaixo (fallback).
+    SHEET_ID:            "1soNX-LdvAit09ja38D3eEFXTEk82oyt_XrhlzJMl05c",
+    SHEET_PERGUNTAS_ABA: "Perguntas",
+    SHEET_ESCOPOS_ABA:   "Escopo",
     PERGUNTAS_CSV_URL: "perguntas.csv",
     ESCOPOS_CSV_URL:   "escopo.csv",
     LOGO_URL:          "PERPEC - LOGO PRINCIPAL.png",
-    // Referência do documento exibida no cabeçalho / rodapé do PDF
     DOC_REF: "FP-SGQ-0015 RevForm.00"
   };
 
@@ -122,6 +122,8 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 .escopo-chip:hover{border-color:#9A9087;background:var(--surface2)}
 .escopo-chip input{width:17px;height:17px;accent-color:var(--red);cursor:pointer;flex-shrink:0}
 .escopo-chip.sel{border-color:var(--red);background:var(--accent-lt)}
+.escopo-chip.bloqueado{pointer-events:none}
+.escopo-chip.bloqueado input{cursor:default}
 .escopo-chip .esc-name{font-weight:600;color:var(--text)}
 .escopo-chip .esc-tag{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:20px;margin-left:auto}
 .esc-tag.produto{background:#EEF2FF;color:#3D5AC0}
@@ -153,6 +155,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 .q-warn{display:none;margin-top:8px;font-size:11.5px;font-weight:600;color:var(--yellow);background:var(--yellow-bg);border:1px solid var(--yellow-bd);border-radius:6px;padding:6px 9px}
 .q-warn.show{display:block}
 .q-warn.err{color:var(--red);background:var(--accent-lt);border-color:#E8B8B0}
+.q-warn.ok{color:var(--green);background:var(--green-bg);border-color:var(--green-bd)}
 .bloco-sub{font-size:11px;color:var(--muted);margin:-.5rem 0 .9rem;font-weight:500}
 .bloco-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-left:auto;flex-shrink:0}
 .bloco-tag.sgq{background:rgba(192,57,43,.2);color:#E08070}
@@ -201,9 +204,8 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
   <div class="doc-strip">
     <div class="doc-strip-inner">
       <div>
-        <span class="doc-code-label">Protocolo Auditado</span>
-        <span class="doc-code-prefix">RQF</span>
-        <span class="doc-code-val" id="hdrProtocolo">—</span>
+        <span class="doc-code-label">Rastreabilidade</span>
+        <span class="doc-code-val" id="hdrRastreabilidade">—</span>
       </div>
       <span class="doc-meta" id="docRef">—</span>
       <span class="doc-req">* Campos obrigatórios</span>
@@ -253,7 +255,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
       </div>
       <div class="card-body">
         <div class="g2" style="margin-bottom:13px">
-          <div class="field"><label>Protocolo do Fornecedor (RQF) <span class="req">*</span></label><input type="text" id="protocoloFornecedor" placeholder="Ex.: 123-26" oninput="atualizarProtocolo()"></div>
+          <div class="field"><label>Rastreabilidade <span class="req">*</span></label><input type="text" id="rastreabilidadeField" placeholder="Ex.: RQF-247-26" oninput="syncRastreabilidade()"></div>
           <div class="field"><label>Data da Auditoria</label><input type="text" id="dataHoraField" readonly></div>
         </div>
         <div class="g2" style="margin-bottom:13px">
@@ -280,12 +282,12 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
         <div class="field">
           <label>A certificação de SGQ informada pelo fornecedor é válida e a evidência (certificado) confere? <span class="req">*</span></label>
           <div class="opt-group">
-            <input type="radio" class="opt-radio opt-sim" name="certConfirmado" id="certc_sim" value="Sim" onchange="atualizar()">
+            <input type="radio" class="opt-radio opt-sim" name="certConfirmado" id="certc_sim" value="Sim" onchange="toggleCertConfirmada()">
             <label class="opt-label" for="certc_sim">Sim</label>
-            <input type="radio" class="opt-radio opt-nao" name="certConfirmado" id="certc_nao" value="Não" onchange="atualizar()">
+            <input type="radio" class="opt-radio opt-nao" name="certConfirmado" id="certc_nao" value="Não" onchange="toggleCertConfirmada()">
             <label class="opt-label" for="certc_nao">Não</label>
           </div>
-          <p class="bloco-sub" style="margin-top:8px">Quando confirmado "Sim", a nota final tem piso de <strong id="pisoCertTxt"></strong> pontos (Aprovado), independente das demais respostas.</p>
+          <p class="bloco-sub" style="margin-top:8px">Quando confirmado "Sim", a nota final tem piso de 100 pontos (Aprovado), independente das demais respostas.</p>
         </div>
       </div>
     </div>
@@ -298,7 +300,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
         <span class="count-pill" id="escCount">0 selecionados</span>
       </div>
       <div class="card-body">
-        <p class="info-note" style="margin-bottom:12px">Selecione os mesmos escopos marcados pelo fornecedor na autoavaliação, para carregar as mesmas perguntas.</p>
+        <p class="info-note" id="escopoDescP" style="margin-bottom:12px">Selecione os escopos auditados para carregar as perguntas correspondentes.</p>
         <div class="escopo-grid" id="escopoGrid"></div>
       </div>
     </div>
@@ -575,6 +577,9 @@ let ESCOPOS = [
 let blocosMap = {};
 let escoposSel = [];
 let respostas = {};
+let rastreabilidade = "";
+let escoposBloqueadosURL = false;
+let sgqAutoFilled = false;
 let dataHoraPreenchimento = "";
 const PROD_GERAL_ID = "5";
 
@@ -595,53 +600,114 @@ function maskCNPJ(el){let v=el.value.replace(/\D/g,'').slice(0,14);
    ================================================================ */
 window.onload = async () => {
   document.getElementById('docRef').textContent = CONFIG.DOC_REF;
-  document.getElementById('pisoCertTxt').textContent = SCORING.PISO_CERT_SGQ;
+  const pisoEl = document.getElementById('pisoCertTxt');
+  if(pisoEl) pisoEl.textContent = SCORING.PISO_CERT_SGQ;
+  carregarRastreabilidade();
   definirDataHora();
   await carregarEscoposExternos();
   await carregarPerguntasExternas();
   BANCO_PERGUNTAS.forEach(b=>blocosMap[b.id]=b);
+  carregarEscoposDaURL();
   renderEscopos(); renderPerguntas(); atualizar();
   carregarLogo();
 };
 
-function atualizarProtocolo(){
-  const v=(document.getElementById('protocoloFornecedor').value||'').trim();
-  document.getElementById('hdrProtocolo').textContent=v||'—';
+function carregarRastreabilidade(){
+  try{ const qp=new URLSearchParams(window.location.search); rastreabilidade=(qp.get('ras')||'').trim(); }
+  catch(e){ rastreabilidade=''; }
+  document.getElementById('hdrRastreabilidade').textContent=rastreabilidade||'—';
+  const f=document.getElementById('rastreabilidadeField'); if(f) f.value=rastreabilidade;
+}
+function syncRastreabilidade(){
+  rastreabilidade=(document.getElementById('rastreabilidadeField').value||'').trim();
+  document.getElementById('hdrRastreabilidade').textContent=rastreabilidade||'—';
+}
+function carregarEscoposDaURL(){
+  try{
+    const qp=new URLSearchParams(window.location.search);
+    const param=(qp.get('escopos')||'').trim();
+    if(!param){ escoposBloqueadosURL=false; return; }
+    const nomes=param.split('|').map(s=>s.trim()).filter(Boolean);
+    if(!nomes.length){ escoposBloqueadosURL=false; return; }
+    escoposSel=nomes;
+    escoposBloqueadosURL=true;
+  }catch(e){ escoposBloqueadosURL=false; }
 }
 function definirDataHora(){
   dataHoraPreenchimento=new Date().toLocaleString('pt-BR');
   const f=document.getElementById('dataHoraField'); if(f) f.value=dataHoraPreenchimento;
 }
+function urlSheetCSV(aba){
+  if(!CONFIG.SHEET_ID) return null;
+  return 'https://docs.google.com/spreadsheets/d/'+CONFIG.SHEET_ID
+       + '/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(aba)+'&_='+Date.now();
+}
+function parseCSV(text){
+  text=String(text||'').replace(/^﻿/,'');
+  const head=(text.split('\n')[0]||'');
+  const sep=((head.split(';').length-1)>(head.split(',').length-1))?';':',';
+  const rows=[]; let row=[],val='',q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){
+      if(ch==='"'){if(text[i+1]==='"'){val+='"';i++;}else q=false;}
+      else val+=ch;
+    }else{
+      if(ch==='"') q=true;
+      else if(ch===sep){row.push(val);val='';}
+      else if(ch==='\n'){row.push(val);rows.push(row);row=[];val='';}
+      else if(ch==='\r'){/* ignora */}
+      else val+=ch;
+    }
+  }
+  if(val!==''||row.length){row.push(val);rows.push(row);}
+  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+}
+async function fetchTextoPrimeiroOk(urls){
+  for(const u of urls){
+    if(!u) continue;
+    try{
+      const r=await fetch(u,{cache:'no-store'});
+      if(!r.ok) continue;
+      const t=await r.text();
+      if(t && t.trim()) return t;
+    }catch(e){}
+  }
+  return null;
+}
 async function carregarEscoposExternos(){
-  if(!CONFIG.ESCOPOS_CSV_URL) return;
-  try{
-    const txt=await (await fetch(CONFIG.ESCOPOS_CSV_URL)).text();
-    const linhas=txt.split('\n').map(l=>l.trim()).filter(Boolean);
-    const out=[];
-    linhas.forEach((l,i)=>{
-      const c=l.split(';'); if(i===0 && /nome/i.test(c[0])) return;
-      const nome=(c[0]||'').trim(); if(!nome) return;
-      out.push({nome, tipo:((c[1]||'produto').trim().toLowerCase()==='servico'?'servico':'produto'),
-                blocos:(c[2]||'').split(',').map(x=>x.trim()).filter(Boolean)});
-    });
-    if(out.length) ESCOPOS=out;
-  }catch(e){/* mantém fallback */}
+  const txt=await fetchTextoPrimeiroOk([urlSheetCSV(CONFIG.SHEET_ESCOPOS_ABA), CONFIG.ESCOPOS_CSV_URL]);
+  if(!txt) return;
+  const rows=parseCSV(txt);
+  const out=[];
+  rows.forEach((c,i)=>{
+    if(i===0 && /nome/i.test(c[0]||'')) return;
+    const nome=(c[0]||'').trim(); if(!nome) return;
+    out.push({nome,
+              tipo:((c[1]||'produto').trim().toLowerCase()==='servico'?'servico':'produto'),
+              blocos:(c[2]||'').split(',').map(x=>x.trim()).filter(Boolean)});
+  });
+  if(out.length) ESCOPOS=out;
 }
 async function carregarPerguntasExternas(){
-  if(!CONFIG.PERGUNTAS_CSV_URL) return;
-  try{
-    const txt=await (await fetch(CONFIG.PERGUNTAS_CSV_URL)).text();
-    const linhas=txt.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim());
-    const mapa={};
-    linhas.forEach((l,i)=>{
-      const c=l.split(';'); if(i===0 && /bloco_id/i.test(c[0])) return;
-      const id=(c[0]||'').trim(); if(!id) return;
-      if(!mapa[id]) mapa[id]={id,categoria:(c[1]||'').trim(),grupo:(c[2]||'ESCOPO').trim(),bloco_nota:(c[3]||'TECNICA').trim(),perguntas:[]};
-      mapa[id].perguntas.push({c:(c[5]||'').trim(),t:(c[6]||'').trim()});
-    });
-    const arr=Object.values(mapa);
-    if(arr.length){BANCO_PERGUNTAS.length=0;arr.forEach(b=>BANCO_PERGUNTAS.push(b));}
-  }catch(e){/* mantém fallback */}
+  const txt=await fetchTextoPrimeiroOk([urlSheetCSV(CONFIG.SHEET_PERGUNTAS_ABA), CONFIG.PERGUNTAS_CSV_URL]);
+  if(!txt) return;
+  const rows=parseCSV(txt);
+  const mapa={}; const ordem=[];
+  rows.forEach((c,i)=>{
+    if(i===0 && /bloco_id/i.test(c[0]||'')) return;
+    const id=(c[0]||'').trim(); if(!id) return;
+    const cod=(c[5]||'').trim(), texto=(c[6]||'').trim();
+    if(!cod && !texto) return;
+    if(!mapa[id]){
+      mapa[id]={id,categoria:(c[1]||'').trim(),grupo:(c[2]||'ESCOPO').trim(),
+                bloco_nota:(c[3]||'TECNICA').trim(),escopo:(c[4]||'').trim(),perguntas:[]};
+      ordem.push(id);
+    }
+    mapa[id].perguntas.push({c:cod,t:texto});
+  });
+  const arr=ordem.map(id=>mapa[id]);
+  if(arr.length){BANCO_PERGUNTAS.length=0;arr.forEach(b=>BANCO_PERGUNTAS.push(b));}
 }
 function carregarLogo(){
   if(window.LOGO_B64||!CONFIG.LOGO_URL) return;
@@ -651,10 +717,41 @@ function carregarLogo(){
 }
 
 /* ================================================================
+   CERTIFICAÇÃO SGQ — auto-preenchimento (igual ao index.html)
+   ================================================================ */
+function toggleCertConfirmada(){
+  if(certConfirmadaValida()){
+    autoFillSGQ();
+  }else{
+    if(sgqAutoFilled) resetSGQAutoFill();
+  }
+  atualizar();
+}
+function autoFillSGQ(){
+  BANCO_PERGUNTAS.filter(b=>b.grupo==='SGQ').forEach(b=>
+    b.perguntas.forEach(p=>{
+      const id=qid(b.id,p.c);
+      respostas[id]={status:'Conforme', comentario:(respostas[id]||{}).comentario||''};
+    })
+  );
+  sgqAutoFilled=true;
+  renderPerguntas();
+}
+function resetSGQAutoFill(){
+  BANCO_PERGUNTAS.filter(b=>b.grupo==='SGQ').forEach(b=>
+    b.perguntas.forEach(p=>{ delete respostas[qid(b.id,p.c)]; })
+  );
+  sgqAutoFilled=false;
+  renderPerguntas();
+}
+
+/* ================================================================
    ESCOPOS
    ================================================================ */
 function renderEscopos(){
   const grid=document.getElementById('escopoGrid');
+  const descP=document.getElementById('escopoDescP');
+  const countEl=document.getElementById('escCount');
   grid.innerHTML=ESCOPOS.map((e,i)=>{
     const sel=escoposSel.includes(e.nome);
     return '<label class="escopo-chip'+(sel?' sel':'')+'" id="chip_'+i+'">'
@@ -662,7 +759,8 @@ function renderEscopos(){
       +'<span class="esc-name">'+esc(e.nome)+'</span>'
       +'<span class="esc-tag '+e.tipo+'">'+(e.tipo==='produto'?'Produto':'Serviço')+'</span></label>';
   }).join('');
-  document.getElementById('escCount').textContent=escoposSel.length+' selecionado'+(escoposSel.length===1?'':'s');
+  if(descP) descP.textContent='Selecione os escopos auditados para carregar as perguntas correspondentes.';
+  if(countEl) countEl.textContent=escoposSel.length+' selecionado'+(escoposSel.length===1?'':'s');
 }
 function toggleEscopo(i,checked){
   const nome=ESCOPOS[i].nome;
@@ -673,12 +771,13 @@ function toggleEscopo(i,checked){
   renderPerguntas(); atualizar();
 }
 function blocosVisiveis(){
-  const ids=[];
-  BANCO_PERGUNTAS.filter(b=>b.grupo==='SGQ').forEach(b=>ids.push(b.id));
   const temProduto=escoposSel.some(n=>{const e=ESCOPOS.find(x=>x.nome===n);return e&&e.tipo==='produto';});
-  if(temProduto && blocosMap[PROD_GERAL_ID]) ids.push(PROD_GERAL_ID);
-  escoposSel.forEach(n=>{const e=ESCOPOS.find(x=>x.nome===n);if(e)e.blocos.forEach(bid=>{if(blocosMap[bid]&&!ids.includes(bid))ids.push(bid);});});
-  return BANCO_PERGUNTAS.filter(b=>ids.includes(b.id));
+  return BANCO_PERGUNTAS.filter(b=>{
+    if(b.grupo==='SGQ')            return true;
+    if(b.grupo==='PRODUCAO_GERAL') return temProduto;
+    if(b.escopo && escoposSel.includes(b.escopo)) return true;
+    return escoposSel.some(n=>{const e=ESCOPOS.find(x=>x.nome===n);return e&&e.blocos&&e.blocos.includes(b.id);});
+  });
 }
 
 /* ================================================================
@@ -691,16 +790,22 @@ function renderPerguntas(){
     cont.innerHTML='<div class="card"><div class="card-body"><div class="empty-state">Selecione ao menos um escopo acima para carregar o questionário a ser auditado.</div></div></div>';
     return;
   }
-  let html='';
+  let html=''; let sgqBannerShown=false;
   blocos.forEach(b=>{
     const tag = b.bloco_nota==='SGQ'
       ? '<span class="bloco-tag sgq">SGQ</span>'
       : '<span class="bloco-tag tec">Técnica</span>';
-    const sub = b.grupo==='PRODUCAO_GERAL'
-      ? '<div class="bloco-sub">Carregado automaticamente para fornecedores de produtos/processos produtivos.</div>' : '';
+    let sub='';
+    if(b.bloco_nota==='SGQ' && sgqAutoFilled && !sgqBannerShown){
+      sub='<div class="q-warn ok show" style="margin-bottom:14px">✓ Seção preenchida automaticamente como <strong>Conforme</strong> com base na certificação de SGQ confirmada. Ajuste itens individuais se necessário.</div>';
+      sgqBannerShown=true;
+    }
+    if(b.grupo==='PRODUCAO_GERAL')
+      sub+='<div class="bloco-sub">Carregado automaticamente para fornecedores de produtos/processos produtivos.</div>';
     html+='<div class="card"><div class="card-head">'
       +'<svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>'
       +'<h2>'+esc(b.id+' — '+b.categoria)+'</h2>'+tag+'</div><div class="card-body">'+sub;
+
     b.perguntas.forEach(p=>{html+=renderQ(b,p);});
     html+='</div></div>';
   });
@@ -828,7 +933,7 @@ function atualizar(){
 function val(id){return (document.getElementById(id).value||'').trim();}
 function validar(){
   const erros=[];
-  if(!val('protocoloFornecedor')) erros.push('Protocolo do Fornecedor (RQF)');
+  if(!val('rastreabilidadeField')) erros.push('Rastreabilidade');
   if(!val('razaoSocial')) erros.push('Razão Social do Fornecedor');
   if(!val('auditorNome')) erros.push('Auditor Responsável');
   if(!val('auditorCargo')) erros.push('Cargo / Função do Auditor');
@@ -859,7 +964,7 @@ function coletar(){
       parecer_item:st.comentario||''});
   }));
   return {
-    protocolo_fornecedor:'RQF-'+val('protocoloFornecedor'),
+    rastreabilidade: rastreabilidade,
     documento_ref:CONFIG.DOC_REF,
     data_auditoria:dataHoraPreenchimento,
     fornecedor:{ razao_social:val('razaoSocial'), cnpj:val('cnpj') },
@@ -910,7 +1015,7 @@ function gerarPDF(){
     if(logoB64){try{doc.addImage(logoB64,'PNG',ML,3,38,10);}catch(e){}}
     setD(RED);doc.setLineWidth(0.8);doc.line(0,18,W,18);
     doc.setFontSize(13);doc.setFont('helvetica','bold');setC(DARK);doc.text('Relatório de Auditoria — Autoavaliação',W-MR,9,{align:'right'});
-    doc.setFontSize(7.5);doc.setFont('helvetica','normal');setC(GRAY);doc.text(d.protocolo_fornecedor+'  •  '+d.data_auditoria,W-MR,15,{align:'right'});
+    doc.setFontSize(7.5);doc.setFont('helvetica','normal');setC(GRAY);doc.text((d.rastreabilidade||'—')+'  •  '+d.data_auditoria,W-MR,15,{align:'right'});
   }
   header();
   let y=24;
@@ -928,7 +1033,7 @@ function gerarPDF(){
     y+=3;
   }
   bloco('Identificação da Auditoria',[
-    ['Protocolo do Fornecedor:',d.protocolo_fornecedor],
+    ['Rastreabilidade:',d.rastreabilidade||'—'],
     ['Razão Social:',d.fornecedor.razao_social],['CNPJ:',d.fornecedor.cnpj],
     ['Auditor Responsável:',d.auditor.nome+'  ('+d.auditor.cargo+')'],
     ['Data da Auditoria:',d.data_auditoria],
@@ -1000,8 +1105,8 @@ function gerarPDF(){
   y+=parecerTx.length*4.6+4;
 
   const tot=doc.internal.getNumberOfPages();for(let i=1;i<=tot;i++){doc.setPage(i);footer();}
-  const nomeArq=(val('protocoloFornecedor')||'sem-protocolo').replace(/[^a-zA-Z0-9-]/g,'');
-  doc.save('Auditoria-RQF-'+nomeArq+'.pdf');
+  const nomeArq=(rastreabilidade||'sem-rastreabilidade').replace(/[^a-zA-Z0-9-]/g,'');
+  doc.save('Auditoria-'+nomeArq+'.pdf');
 }
 
 /* ================================================================
@@ -1009,12 +1114,12 @@ function gerarPDF(){
    ================================================================ */
 function limpar(){
   if(!confirm('Limpar todo o formulário de auditoria?'))return;
-  respostas={}; escoposSel=[];
+  respostas={}; sgqAutoFilled=false;
+  if(!escoposBloqueadosURL) escoposSel=[];
   document.querySelectorAll('#conteudo input[type="text"]:not([readonly])').forEach(el=>el.value='');
   document.getElementById('parecerFinal').value='';
   document.querySelectorAll('input[name="certConfirmado"]').forEach(el=>el.checked=false);
-  document.getElementById('hdrProtocolo').textContent='—';
-  definirDataHora();
+  carregarRastreabilidade(); definirDataHora();
   renderEscopos(); renderPerguntas(); atualizar();
   showToast('Formulário de auditoria limpo.');
 }
