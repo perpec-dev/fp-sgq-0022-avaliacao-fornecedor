@@ -42,7 +42,7 @@
     ESCOPOS_CSV_URL:   "escopo.csv",
     LOGO_URL:          "PERPEC - LOGO PRINCIPAL.png",
     // Referência do documento exibida no cabeçalho / rodapé do PDF
-    DOC_REF: "FP-SGQ-0015 RevForm.00"
+    DOC_REF: "FP-SGQ-0022 RevForm.00"
   };
 
   // ---- Parâmetros de pontuação (facilmente revisáveis) ----------
@@ -700,7 +700,9 @@ let escoposBloqueadosURL = false;
 let sgqAutoFilled = false;
 let dataHoraPreenchimento = "";
 let linkPastaEvidencias = "";
-const PROD_GERAL_ID = "5";          // id do bloco "Produção Geral"
+// A visibilidade dos blocos é decidida SOMENTE por b.grupo (SGQ / PRODUCAO_GERAL / ESCOPO)
+// e pelo mapeamento escopo→blocos da aba "Escopo". Nunca fixar id de bloco no código:
+// a numeração da planilha muda (ex.: bloco 5 já foi "Produção Geral" e hoje é "Tintas").
 
 /* ================================================================
    HELPERS
@@ -868,7 +870,7 @@ async function carregarPerguntasExternas(){
     if(!cod && !texto) return;                         // ignora linhas sem pergunta
     if(!mapa[id]){
       mapa[id]={id,categoria:(c[1]||'').trim(),grupo:(c[2]||'ESCOPO').trim(),
-                bloco_nota:(c[3]||'TECNICA').trim(),perguntas:[]};
+                bloco_nota:(c[3]||'TECNICA').trim(),escopo:(c[4]||'').trim(),perguntas:[]};
       ordem.push(id);
     }
     mapa[id].perguntas.push({c:cod,t:texto});
@@ -1077,16 +1079,14 @@ function toggleEscopo(i,checked){
 
 /* ----- determina os blocos visíveis conforme regras ----- */
 function blocosVisiveis(){
-  const ids=[];
-  // 1) SGQ sempre
-  BANCO_PERGUNTAS.filter(b=>b.grupo==='SGQ').forEach(b=>ids.push(b.id));
-  // 2) Produção Geral se houver ao menos um escopo do tipo "produto"
   const temProduto=escoposSel.some(n=>{const e=ESCOPOS.find(x=>x.nome===n);return e&&e.tipo==='produto';});
-  if(temProduto && blocosMap[PROD_GERAL_ID]) ids.push(PROD_GERAL_ID);
-  // 3) blocos dos escopos selecionados
-  escoposSel.forEach(n=>{const e=ESCOPOS.find(x=>x.nome===n);if(e)e.blocos.forEach(bid=>{if(blocosMap[bid]&&!ids.includes(bid))ids.push(bid);});});
-  // mantém a ordem do banco
-  return BANCO_PERGUNTAS.filter(b=>ids.includes(b.id));
+  return BANCO_PERGUNTAS.filter(b=>{
+    if(b.grupo==='SGQ')          return true;
+    if(b.grupo==='PRODUCAO_GERAL') return temProduto;
+    // Se b.escopo bate direto com o nome selecionado, usa; senão cai no fallback
+    if(b.escopo && escoposSel.includes(b.escopo)) return true;
+    return escoposSel.some(n=>{const e=ESCOPOS.find(x=>x.nome===n);return e&&e.blocos&&e.blocos.includes(b.id);});
+  });
 }
 
 /* ================================================================
