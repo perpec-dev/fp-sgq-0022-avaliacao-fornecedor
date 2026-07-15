@@ -27,8 +27,9 @@
     REGULAR:  75,
     NC:       0,
     PESO_SGQ:     0.5,
-    PESO_TECNICA: 0.5,
-    PISO_CERT_SGQ: 80   // nota final mínima quando a certificação de SGQ é confirmada válida com evidência
+    PESO_TECNICA: 0.5
+    // Sem piso de nota final: mesmo com a certificação de SGQ confirmada, as
+    // penalizações técnicas reduzem normalmente o que foi conquistado pelo SGQ.
   };
 
   // ---- Faixas de classificação (cor + rótulo) -------------------
@@ -287,7 +288,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
             <input type="radio" class="opt-radio opt-nao" name="certConfirmado" id="certc_nao" value="Não" onchange="toggleCertConfirmada()">
             <label class="opt-label" for="certc_nao">Não</label>
           </div>
-          <p class="bloco-sub" style="margin-top:8px">Quando confirmado "Sim", a nota final tem piso de 100 pontos (Aprovado), independente das demais respostas.</p>
+          <p class="bloco-sub" style="margin-top:8px">Quando confirmado "Sim", os itens de SGQ são preenchidos automaticamente como "Conforme". Não há piso de nota final: as penalizações técnicas reduzem normalmente o resultado consolidado.</p>
         </div>
       </div>
     </div>
@@ -602,8 +603,6 @@ function maskCNPJ(el){let v=el.value.replace(/\D/g,'').slice(0,14);
    ================================================================ */
 window.onload = async () => {
   document.getElementById('docRef').textContent = CONFIG.DOC_REF;
-  const pisoEl = document.getElementById('pisoCertTxt');
-  if(pisoEl) pisoEl.textContent = SCORING.PISO_CERT_SGQ;
   carregarRastreabilidade();
   definirDataHora();
   await carregarEscoposExternos();
@@ -891,10 +890,10 @@ function calcular(){
   let nFinal=null;
   if(nSGQ!=null&&nTec!=null) nFinal=SCORING.PESO_SGQ*nSGQ+SCORING.PESO_TECNICA*nTec;
   else if(nSGQ!=null) nFinal=nSGQ; else if(nTec!=null) nFinal=nTec;
-  let certOverride=false;
-  if(nFinal!=null && certConfirmadaValida() && nFinal<SCORING.PISO_CERT_SGQ){
-    nFinal=SCORING.PISO_CERT_SGQ; certOverride=true;
-  }
+  // A certificação de SGQ confirmada continua conferindo a nota de SGQ (itens
+  // preenchidos como "Conforme"), mas NÃO garante piso na nota final: as
+  // penalizações técnicas reduzem normalmente o resultado consolidado.
+  const certOverride=false;
   return {nSGQ,nTec,nFinal,total,respondidas,pct:total?respondidas/total*100:0,certOverride};
 }
 
@@ -1057,11 +1056,6 @@ function gerarPDF(){
   doc.roundedRect(ML,y,CW,11,2,2,'FD');
   doc.setFontSize(11);doc.setFont('helvetica','bold');setC(fc);doc.text('Classificação Final: '+d.resultados.classificacao,W/2,y+7,{align:'center'});
   y+=13;
-  if(d.resultados.aprovacao_garantida_por_certificacao_sgq){
-    doc.setFontSize(7);doc.setFont('helvetica','italic');setC(GRAY);
-    doc.text('* Nota final garantida em '+SCORING.PISO_CERT_SGQ+' pontos devido à certificação de SGQ confirmada nesta auditoria.',ML,y);
-    y+=4;
-  }
   y+=3;
 
   const byBloco={};
