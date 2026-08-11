@@ -7,6 +7,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
+<!-- Dicionário de idiomas (compartilhado com index.html). Aqui só é usado
+     para gerar o PDF bilíngue: a interface deste painel é sempre em
+     português, porque quem usa é a equipe Perpec. -->
+<script src="i18n.js"></script>
+
 <!-- ============================================================= -->
 <!-- ===== CONFIG (ponto único de manutenção) ===================== -->
 <!-- ============================================================= -->
@@ -33,10 +38,12 @@
   };
 
   // ---- Faixas de classificação (cor + rótulo) -------------------
+  // "label" é o rótulo em português usado na tela e no payload; "key" é a
+  // chave para o rótulo traduzido do PDF bilíngue (ver i18n.js).
   const FAIXAS = [
-    { min: 0,  max: 59.999, label: "Não Aprovado",            cor: "#C0392B", rgb: [192, 57, 43],  bg: "#FDECEA" },
-    { min: 60, max: 79.999, label: "Aprovado com Ressalvas",  cor: "#B7791F", rgb: [183, 121, 31], bg: "#FEF7E6" },
-    { min: 80, max: 100,    label: "Aprovado",                cor: "#2E7D32", rgb: [46, 125, 50],  bg: "#EAF6EB" }
+    { min: 0,  max: 59.999, key:"cls.reprovado", label: "Não Aprovado",            cor: "#C0392B", rgb: [192, 57, 43],  bg: "#FDECEA" },
+    { min: 60, max: 79.999, key:"cls.ressalvas", label: "Aprovado com Ressalvas",  cor: "#B7791F", rgb: [183, 121, 31], bg: "#FEF7E6" },
+    { min: 80, max: 100,    key:"cls.aprovado",  label: "Aprovado",                cor: "#2E7D32", rgb: [46, 125, 50],  bg: "#EAF6EB" }
   ];
 </script>
 
@@ -102,6 +109,11 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 .toast.success{background:#155724}.toast.error{background:var(--red)}
 .count-pill{display:inline-flex;align-items:center;background:rgba(192,57,43,.15);color:#E08070;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;margin-left:auto}
 .page-footer{text-align:center;font-size:12px;color:#aaa;margin-top:32px;padding-bottom:24px}
+/* Seletor do idioma do relatório PDF (a interface segue em português) */
+.pdf-lang{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+.pdf-lang select{border:1px solid var(--border2);border-radius:var(--radius);padding:8px 10px;font-size:13px;font-family:inherit;color:var(--text);background:var(--surface)}
+.pdf-lang select:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px rgba(192,57,43,.12)}
+@media(max-width:768px){.pdf-lang{width:100%;justify-content:space-between}.pdf-lang select{flex:1;margin-left:8px}}
 @media(max-width:768px){.act-bar{flex-direction:column;align-items:stretch}.act-group{justify-content:stretch}.act-bar .btn{width:100%}}
 @media(max-width:480px){.header-logo img{height:36px}.card-body{padding:1rem}}
 
@@ -346,10 +358,17 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
       <div class="act-group">
         <button class="btn btn-outline" onclick="limpar()">Limpar Tudo</button>
       </div>
-      <div class="act-group">
+      <div class="act-group" style="align-items:center">
+        <!-- Idioma do RELATÓRIO (a tela continua em português). O PDF sai
+             sempre neste idioma + inglês logo abaixo, em itálico cinza. -->
+        <label class="pdf-lang">
+          <span>Idioma do relatório</span>
+          <select id="pdfLang" onchange="atualizarNotaIdioma()"></select>
+        </label>
         <button class="btn btn-dark" id="btnPdf" onclick="finalizarAuditoria()">⬇ Baixar PDF do Relatório de Auditoria</button>
       </div>
     </div>
+    <div id="notaIdioma" style="text-align:right;font-size:11.5px;color:var(--muted);margin-top:8px"></div>
 
   </div><!-- /#conteudo -->
 
@@ -591,7 +610,9 @@ let dataHoraPreenchimento = "";
    ================================================================ */
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function qid(blocoId,c){return 'q_'+blocoId+'_'+String(c).replace(/\./g,'_');}
-function showToast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(type?' '+type:'');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),4000);}
+/* Obs.: a variável local NÃO pode se chamar "t" — esse nome é a função de
+   tradução global (i18n.js) e seria sombreada aqui dentro. */
+function showToast(msg,type=''){const el=document.getElementById('toast');el.textContent=msg;el.className='toast'+(type?' '+type:'');el.classList.add('show');setTimeout(()=>el.classList.remove('show'),4000);}
 function faixaDe(score){for(const f of FAIXAS){if(score>=f.min&&score<=f.max)return f;}return FAIXAS[0];}
 function fmtNota(n){return n==null?'—':(Math.round(n*10)/10).toString().replace('.',',');}
 function maskCNPJ(el){let v=el.value.replace(/\D/g,'').slice(0,14);
@@ -603,6 +624,7 @@ function maskCNPJ(el){let v=el.value.replace(/\D/g,'').slice(0,14);
    ================================================================ */
 window.onload = async () => {
   document.getElementById('docRef').textContent = CONFIG.DOC_REF;
+  renderPdfLangSelect();
   carregarRastreabilidade();
   definirDataHora();
   await carregarEscoposExternos();
@@ -612,6 +634,48 @@ window.onload = async () => {
   renderEscopos(); renderPerguntas(); atualizar();
   carregarLogo();
 };
+
+/* ================================================================
+   IDIOMA DO RELATÓRIO PDF
+   A interface deste painel é sempre em português (quem usa é a equipe
+   Perpec). O que muda aqui é só o idioma do PDF entregue ao fornecedor:
+   o idioma escolhido em cima e o inglês logo abaixo, em itálico cinza.
+   Escolhendo inglês, o relatório sai só em inglês (não faz sentido
+   repetir a mesma língua duas vezes).
+   ================================================================ */
+const PDF_LANG_KEY='perpec_pdf_lang';
+
+function renderPdfLangSelect(){
+  const sel=document.getElementById('pdfLang'); if(!sel) return;
+  sel.innerHTML=LANGS.map(l=>'<option value="'+l.code+'">'+l.flag+'  '+esc(l.nome)+'</option>').join('');
+  let salvo=null; try{ salvo=localStorage.getItem(PDF_LANG_KEY); }catch(e){}
+  sel.value=isLangValid(salvo)?salvo:'pt';
+  atualizarNotaIdioma();
+}
+
+/* Par de idiomas do relatório: [principal, secundário|null]. */
+function idiomasRelatorio(){
+  const sel=document.getElementById('pdfLang');
+  const escolhido=(sel&&isLangValid(sel.value))?sel.value:'pt';
+  const A=pdfLangOf(escolhido);          // chinês cai em inglês (fonte do PDF sem CJK)
+  return [A, A==='en'?null:'en'];
+}
+
+function atualizarNotaIdioma(){
+  const sel=document.getElementById('pdfLang'); if(!sel) return;
+  try{ localStorage.setItem(PDF_LANG_KEY,sel.value); }catch(e){}
+  const escolhido=sel.value;
+  const [A,B]=idiomasRelatorio();
+  const nota=document.getElementById('notaIdioma'); if(!nota) return;
+  if(escolhido!==A){
+    nota.textContent='O relatório sairá apenas em inglês: a fonte do PDF não desenha os caracteres de '
+      + langInfo(escolhido).nome + '.';
+  }else{
+    nota.textContent = B
+      ? ('O relatório sairá em ' + langInfo(A).nome + ' com o inglês logo abaixo de cada item.')
+      : 'O relatório sairá apenas em inglês.';
+  }
+}
 
 function carregarRastreabilidade(){
   try{ const qp=new URLSearchParams(window.location.search); rastreabilidade=(qp.get('ras')||'').trim(); }
@@ -670,23 +734,55 @@ async function fetchTextoPrimeiroOk(urls){
     try{
       const r=await fetch(u,{cache:'no-store'});
       if(!r.ok) continue;
-      const t=await r.text();
-      if(t && t.trim()) return t;
+      const txt=await r.text();
+      if(txt && txt.trim()) return txt;
     }catch(e){}
   }
   return null;
 }
+
+/* ----- Colunas identificadas POR NOME (idêntico ao index.html) ------
+   Permite acrescentar as colunas de tradução (categoria_en, texto_en,
+   nome_es …) em qualquer posição da planilha. Se a 1ª linha não for um
+   cabeçalho, volta a ler por posição, como antes.                    */
+function mapaColunas(rows, colunaChave){
+  if(!rows.length) return null;
+  const head=rows[0].map(c=>String(c||'').trim().toLowerCase());
+  if(head.indexOf(colunaChave)<0) return null;
+  const map={};
+  head.forEach((nome,i)=>{ if(nome && !(nome in map)) map[nome]=i; });
+  return map;
+}
+function celula(row, map, nome, posFallback){
+  const i = map ? map[nome] : posFallback;
+  return (i==null || i<0) ? '' : String(row[i]==null?'':row[i]).trim();
+}
+function campoI18n(row, map, base, posFallback){
+  const obj={ pt: celula(row,map,base,posFallback) };
+  if(map){
+    LANGS.forEach(l=>{
+      if(l.code==='pt') return;
+      const v=celula(row,map,base+'_'+l.code,-1);
+      if(v) obj[l.code]=v;
+    });
+  }
+  return obj;
+}
+
 async function carregarEscoposExternos(){
   const txt=await fetchTextoPrimeiroOk([urlSheetCSV(CONFIG.SHEET_ESCOPOS_ABA), CONFIG.ESCOPOS_CSV_URL]);
   if(!txt) return;
   const rows=parseCSV(txt);
+  const map=mapaColunas(rows,'nome');
   const out=[];
   rows.forEach((c,i)=>{
-    if(i===0 && /nome/i.test(c[0]||'')) return;
-    const nome=(c[0]||'').trim(); if(!nome) return;
-    out.push({nome,
-              tipo:((c[1]||'produto').trim().toLowerCase()==='servico'?'servico':'produto'),
-              blocos:(c[2]||'').split(',').map(x=>x.trim()).filter(Boolean)});
+    if(map && i===0) return;
+    if(/^nome$/i.test((c[0]||'').trim())) return;
+    const nome=celula(c,map,'nome',0); if(!nome) return;
+    out.push({nome,                                  // chave — nunca traduzida
+              nome_i18n:campoI18n(c,map,'nome',0),   // só para o PDF
+              tipo:(celula(c,map,'tipo',1)||'produto').toLowerCase()==='servico'?'servico':'produto',
+              blocos:celula(c,map,'blocos',2).split(',').map(x=>x.trim()).filter(Boolean)});
   });
   if(out.length) ESCOPOS=out;
 }
@@ -694,18 +790,25 @@ async function carregarPerguntasExternas(){
   const txt=await fetchTextoPrimeiroOk([urlSheetCSV(CONFIG.SHEET_PERGUNTAS_ABA), CONFIG.PERGUNTAS_CSV_URL]);
   if(!txt) return;
   const rows=parseCSV(txt);
+  const map=mapaColunas(rows,'bloco_id');
   const mapa={}; const ordem=[];
   rows.forEach((c,i)=>{
-    if(i===0 && /bloco_id/i.test(c[0]||'')) return;
-    const id=(c[0]||'').trim(); if(!id) return;
-    const cod=(c[5]||'').trim(), texto=(c[6]||'').trim();
+    if(map && i===0) return;
+    if(/^bloco_id$/i.test((c[0]||'').trim())) return;
+    const id=celula(c,map,'bloco_id',0); if(!id) return;
+    const cod=celula(c,map,'codigo',5), texto=celula(c,map,'texto',6);
     if(!cod && !texto) return;
     if(!mapa[id]){
-      mapa[id]={id,categoria:(c[1]||'').trim(),grupo:(c[2]||'ESCOPO').trim(),
-                bloco_nota:(c[3]||'TECNICA').trim(),escopo:(c[4]||'').trim(),perguntas:[]};
+      mapa[id]={id,
+                categoria:celula(c,map,'categoria',1),
+                categoria_i18n:campoI18n(c,map,'categoria',1),
+                grupo:celula(c,map,'grupo',2)||'ESCOPO',
+                bloco_nota:celula(c,map,'bloco_nota',3)||'TECNICA',
+                escopo:celula(c,map,'escopo',4),
+                perguntas:[]};
       ordem.push(id);
     }
-    mapa[id].perguntas.push({c:cod,t:texto});
+    mapa[id].perguntas.push({c:cod, t:texto, t_i18n:campoI18n(c,map,'texto',6)});
   });
   const arr=ordem.map(id=>mapa[id]);
   if(arr.length){BANCO_PERGUNTAS.length=0;arr.forEach(b=>BANCO_PERGUNTAS.push(b));}
@@ -991,32 +1094,81 @@ function finalizarAuditoria(){
     return;
   }
   gerarPDF();
-  showToast('✓ PDF do relatório de auditoria gerado.\nAnexe-o manualmente ao card do fornecedor no Monday.','success');
+  const [A,B]=idiomasRelatorio();
+  const idiomas = B ? (langInfo(A).nome+' + '+langInfo(B).nome) : langInfo(A).nome;
+  showToast('✓ PDF do relatório de auditoria gerado ('+idiomas+').\nAnexe-o manualmente ao card do fornecedor no Monday.','success');
+}
+
+/* Linhas do questionário para o PDF, num par de idiomas.
+   Separada de coletar() de propósito: o PDF precisa das traduções vindas
+   da planilha, o restante do painel não. */
+function linhasParaPDF(langA, langB){
+  const grupos=[];
+  blocosVisiveis().forEach(b=>{
+    const cat=b.categoria_i18n||b.categoria;
+    const g={bloco:{a:b.id+' — '+tField(cat,langA),
+                    b:langB?(b.id+' — '+tField(cat,langB)):''},
+             linhas:[]};
+    b.perguntas.forEach(p=>{
+      const id=qid(b.id,p.c), st=respostas[id]||{}, e=efetivo(id);
+      const stKey=st.status||'';                       // chave em português
+      g.linhas.push({
+        codigo:p.c,
+        stKey:stKey,
+        texto:{a:tField(p.t_i18n||p.t,langA), b:langB?tField(p.t_i18n||p.t,langB):''},
+        status:{a:stKey?T(langA,'st.'+stKey):'', b:(langB&&stKey)?T(langB,'st.'+stKey):''},
+        pts:e?e.pts:null,
+        na:!!(e&&e.na),
+        parecer:st.comentario||''
+      });
+    });
+    grupos.push(g);
+  });
+  return grupos;
 }
 
 /* ================================================================
    RELATÓRIO PDF DE AUDITORIA
+   Bilíngue: idioma escolhido no seletor + inglês logo abaixo, menor e
+   em itálico cinza. Escolhendo inglês, sai monolíngue.
+   Nas tabelas o 2º idioma é desenhado à mão (didDrawCell) porque o
+   autoTable não estiliza linhas individuais dentro de uma célula: a
+   altura extra é reservada em didParseCell.
    ================================================================ */
 function gerarPDF(){
+  const [A,B]=idiomasRelatorio();
+  const bi=!!B;
+
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
   const W=210,H=297,ML=10,MR=10,CW=W-ML-MR;
   const DARK=[26,18,16],GRAY=[135,130,125],RED=[192,57,43],LGRAY=[224,219,213];
+  const SF=doc.internal.scaleFactor;
   const d=coletar();
+  const grupos=linhasParaPDF(A,B);
   const f=faixaDe(d.resultados.nota_final==null?0:d.resultados.nota_final);
   const logoB64=window.LOGO_B64||'';
   const setC=c=>doc.setTextColor(...c), setF=c=>doc.setFillColor(...c), setD=c=>doc.setDrawColor(...c);
   const hexToRgb=(hex)=>{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return [r,g,b];};
+  const nota=n=>fmtNotaL(n,A);
+
+  const lb=k=>bi ? (T(A,k).replace(/:\s*$/,'')+' / '+T(B,k)) : T(A,k);
+  const ti=k=>bi ? (T(A,k)+'  /  '+T(B,k)) : T(A,k);
+  const hc=k=>bi ? (T(A,k)+'\n'+T(B,k)) : T(A,k);
+  const docname = bi ? (T(A,'apdf.docname')+' / '+T(B,'apdf.docname')) : T(A,'apdf.docname');
 
   function footer(){const pg=doc.internal.getCurrentPageInfo().pageNumber,tot=doc.internal.getNumberOfPages();
     doc.setFontSize(6.5);doc.setFont('helvetica','italic');setC([170,165,160]);
-    doc.text('Perpec Oilfield Supply  •  '+CONFIG.DOC_REF+'  •  Relatório de Auditoria',W/2,H-6,{align:'center'});
-    doc.setFont('helvetica','normal');doc.text('Pág. '+pg+' / '+tot,W-MR,H-6,{align:'right'});}
+    doc.text('Perpec Oilfield Supply  •  '+CONFIG.DOC_REF+'  •  '+docname,W/2,H-6,{align:'center'});
+    doc.setFont('helvetica','normal');doc.text(T(A,'pdf.page',{a:pg,b:tot}),W-MR,H-6,{align:'right'});}
   function header(){
     if(logoB64){try{doc.addImage(logoB64,'PNG',ML,3,38,10);}catch(e){}}
     setD(RED);doc.setLineWidth(0.8);doc.line(0,18,W,18);
-    doc.setFontSize(13);doc.setFont('helvetica','bold');setC(DARK);doc.text('Relatório de Auditoria — Autoavaliação',W-MR,9,{align:'right'});
-    doc.setFontSize(7.5);doc.setFont('helvetica','normal');setC(GRAY);doc.text((d.rastreabilidade||'—')+'  •  '+d.data_auditoria,W-MR,15,{align:'right'});
+    doc.setFontSize(13);doc.setFont('helvetica','bold');setC(DARK);
+    doc.text(T(A,'apdf.title'),W-MR,bi?8:9,{align:'right'});
+    if(bi){doc.setFontSize(8);doc.setFont('helvetica','italic');setC(GRAY);doc.text(T(B,'apdf.title'),W-MR,12.2,{align:'right'});}
+    doc.setFontSize(7.5);doc.setFont('helvetica','normal');setC(GRAY);
+    doc.text((d.rastreabilidade||'—')+'  •  '+d.data_auditoria,W-MR,bi?15.8:15,{align:'right'});
   }
   header();
   let y=24;
@@ -1025,74 +1177,123 @@ function gerarPDF(){
     doc.setFontSize(8);doc.setFont('helvetica','bold');setC(RED);doc.text(titulo.toUpperCase(),ML,y);y+=2;
     setD(LGRAY);doc.setLineWidth(0.3);doc.line(ML,y,ML+CW,y);y+=4;
     doc.setFontSize(9);
+    const LW=bi?72:58;                     // rótulos bilíngues precisam de mais espaço
     linhas.forEach(([k,v])=>{
-      doc.setFont('helvetica','bold');setC(GRAY);doc.text(k,ML,y);
+      doc.setFont('helvetica','bold');setC(GRAY);
+      const kt=doc.splitTextToSize(String(k),LW-3);doc.text(kt,ML,y);
       doc.setFont('helvetica','normal');setC(DARK);
-      const tx=doc.splitTextToSize(String(v||'—'),CW-58);doc.text(tx,ML+58,y);
-      y+=Math.max(5,tx.length*4.6);
+      const tx=doc.splitTextToSize(String(v||'—'),CW-LW);doc.text(tx,ML+LW,y);
+      y+=Math.max(5,Math.max(tx.length,kt.length)*4.6);
     });
     y+=3;
   }
-  bloco('Identificação da Auditoria',[
-    ['Rastreabilidade:',d.rastreabilidade||'—'],
-    ['Razão Social:',d.fornecedor.razao_social],['CNPJ:',d.fornecedor.cnpj],
-    ['Auditor Responsável:',d.auditor.nome+'  ('+d.auditor.cargo+')'],
-    ['Data da Auditoria:',d.data_auditoria],
-    ['Pasta de Evidências Consultada:',d.link_pasta_evidencias||'—'],
-    ['Certificação SGQ Confirmada:',d.certificacao_sgq_confirmada],
-    ['Escopos Auditados:',d.escopos.join('; ')]
+  const simNao=v=>{
+    const k = v==='Sim' ? 'cert.yes' : v==='Não' ? 'cert.no' : null;
+    if(!k) return v||'—';
+    return bi ? (T(A,k)+' / '+T(B,k)) : T(A,k);
+  };
+  const escTxt=d.escopos.map(n=>{
+    const e=ESCOPOS.find(x=>x.nome===n), src=e?(e.nome_i18n||e.nome):n;
+    return bi ? (tField(src,A)+' / '+tField(src,B)) : tField(src,A);
+  }).join('; ');
+  bloco(ti('apdf.ident'),[
+    [lb('apdf.trace'),     d.rastreabilidade||'—'],
+    [lb('pdf.legalName'),  d.fornecedor.razao_social],
+    [lb('pdf.taxid'),      d.fornecedor.cnpj],
+    [lb('apdf.auditor'),   d.auditor.nome+'  ('+d.auditor.cargo+')'],
+    [lb('apdf.date'),      d.data_auditoria],
+    [lb('apdf.folder'),    d.link_pasta_evidencias||'—'],
+    [lb('apdf.certConf'),  simNao(d.certificacao_sgq_confirmada)],
+    [lb('apdf.scopes'),    escTxt]
   ]);
 
-  doc.setFontSize(8);doc.setFont('helvetica','bold');setC(RED);doc.text('RESULTADO DA AUDITORIA',ML,y);y+=3;
-  const bw=(CW-12)/3, tiles=[['NOTA SGQ (50%)',fmtNota(d.resultados.nota_sgq)],['NOTA TÉCNICA (50%)',fmtNota(d.resultados.nota_tecnica)],['NOTA FINAL',fmtNota(d.resultados.nota_final)]];
-  tiles.forEach((t,i)=>{const x=ML+i*(bw+6);const isFinal=i===2;
-    setF(isFinal?DARK:[248,247,245]);setD(LGRAY);doc.setLineWidth(0.3);doc.roundedRect(x,y,bw,18,2,2,'FD');
-    doc.setFontSize(6.5);doc.setFont('helvetica','bold');setC(isFinal?[160,144,144]:GRAY);doc.text(t[0],x+bw/2,y+5,{align:'center'});
-    doc.setFontSize(16);doc.setFont('helvetica','bold');setC(isFinal?[255,255,255]:DARK);doc.text(t[1],x+bw/2,y+14,{align:'center'});});
-  y+=22;
+  doc.setFontSize(8);doc.setFont('helvetica','bold');setC(RED);doc.text(ti('apdf.result'),ML,y);y+=3;
+  const th=bi?22:18, bw=(CW-12)/3;
+  const tiles=[['res.sgq',nota(d.resultados.nota_sgq)],['res.tec',nota(d.resultados.nota_tecnica)],['res.final',nota(d.resultados.nota_final)]];
+  tiles.forEach((tl,i)=>{const x=ML+i*(bw+6);const isFinal=i===2;
+    setF(isFinal?DARK:[248,247,245]);setD(LGRAY);doc.setLineWidth(0.3);doc.roundedRect(x,y,bw,th,2,2,'FD');
+    doc.setFontSize(6.5);doc.setFont('helvetica','bold');setC(isFinal?[160,144,144]:GRAY);
+    doc.text(T(A,tl[0]),x+bw/2,y+4.6,{align:'center'});
+    if(bi){doc.setFontSize(5.5);doc.setFont('helvetica','italic');doc.text(T(B,tl[0]),x+bw/2,y+8,{align:'center'});}
+    doc.setFontSize(16);doc.setFont('helvetica','bold');setC(isFinal?[255,255,255]:DARK);
+    doc.text(tl[1],x+bw/2,y+th-3.8,{align:'center'});});
+  y+=th+4;
+
   const fc=f.rgb||hexToRgb(f.cor);
+  const bh=bi?15:11;
   setF([fc[0]*0.07+243, fc[1]*0.07+243, fc[2]*0.07+243]);
   setD(fc); doc.setLineWidth(0.5);
-  doc.roundedRect(ML,y,CW,11,2,2,'FD');
-  doc.setFontSize(11);doc.setFont('helvetica','bold');setC(fc);doc.text('Classificação Final: '+d.resultados.classificacao,W/2,y+7,{align:'center'});
-  y+=13;
-  y+=3;
+  doc.roundedRect(ML,y,CW,bh,2,2,'FD');
+  doc.setFontSize(11);doc.setFont('helvetica','bold');setC(fc);
+  doc.text(T(A,'pdf.finalClass')+T(A,f.key),W/2,bi?y+6:y+7,{align:'center'});
+  if(bi){doc.setFontSize(8);doc.setFont('helvetica','italic');doc.text(T(B,'pdf.finalClass')+T(B,f.key),W/2,y+11.6,{align:'center'});}
+  y+=bh+5;
 
-  const byBloco={};
-  d.respostas.forEach(r=>{(byBloco[r.bloco]=byBloco[r.bloco]||[]).push(r);});
-  Object.keys(byBloco).forEach(bk=>{
-    const rows=byBloco[bk].map(r=>[r.codigo,r.texto,r.status_auditoria,r.pontuacao==null?(r.status_auditoria==='Não Aplicável'?'N/A':'—'):String(r.pontuacao),r.parecer_item||'']);
+  const C0=11, CQ=88, C2=24, C3=10, C4=CW-C0-CQ-C2-C3;
+  const PAD=1.6, FSA=7, FSB=6;
+  const lhA=FSA*1.15/SF, lhB=FSB*1.15/SF;
+
+  grupos.forEach(g=>{
+    const sec={}, meta={};
+    const body=g.linhas.map((l,i)=>{
+      meta[i]={stKey:l.stKey, pts:l.pts, na:l.na};
+      if(bi) sec[i]={1:l.texto.b, 2:l.status.b};
+      const pts = l.pts==null ? (l.na?T(A,'st.short.na'):'—') : String(l.pts);
+      return [l.codigo, l.texto.a, l.status.a, pts, l.parecer||''];
+    });
     doc.autoTable({
       startY:y+2,margin:{left:ML,right:MR},
-      head:[[ {content:bk,colSpan:5,styles:{halign:'left',fillColor:DARK,textColor:[212,200,196],fontSize:7.5}} ],
-            ['Cód.','Pergunta','Status','Pts','Parecer do Auditor']],
-      body:rows,
-      styles:{fontSize:7,cellPadding:1.6,lineColor:LGRAY,lineWidth:0.1,valign:'top',overflow:'linebreak'},
+      head:[[ {content:g.bloco.a+(bi?'\n'+g.bloco.b:''),colSpan:5,styles:{halign:'left',fillColor:DARK,textColor:[212,200,196],fontSize:7.5}} ],
+            [hc('pdf.col.code'),hc('pdf.col.q'),hc('pdf.col.status'),hc('pdf.col.pts'),hc('apdf.col.comment')]],
+      body:body,
+      styles:{fontSize:FSA,cellPadding:PAD,lineColor:LGRAY,lineWidth:0.1,valign:'top',overflow:'linebreak'},
       headStyles:{fillColor:[240,237,232],textColor:GRAY,fontStyle:'bold',fontSize:6.8},
-      columnStyles:{0:{cellWidth:11,halign:'center'},1:{cellWidth:88},2:{cellWidth:24,halign:'center'},3:{cellWidth:10,halign:'center',fontStyle:'bold'},4:{cellWidth:CW-11-88-24-10}},
+      columnStyles:{0:{cellWidth:C0,halign:'center'},1:{cellWidth:CQ},2:{cellWidth:C2,halign:'center'},3:{cellWidth:C3,halign:'center',fontStyle:'bold'},4:{cellWidth:C4}},
       didParseCell:hook=>{
-        if(hook.section==='body'&&hook.column.index===2){
-          const v=hook.cell.raw||'';
-          if(v.indexOf('Não Conforme')===0)hook.cell.styles.textColor=[192,57,43];
-          else if(v.indexOf('Não Aplicável')===0)hook.cell.styles.textColor=[61,90,192];
-          else if(v.indexOf('Conforme')===0)hook.cell.styles.textColor=[46,125,50];
-          else if(v.indexOf('Regular')===0)hook.cell.styles.textColor=[183,121,31];
+        if(hook.section!=='body') return;
+        const m=meta[hook.row.index];
+        if(m){
+          if(hook.column.index===2){        // cor pelo status em português, não pelo texto exibido
+            if(m.stKey==='Não Conforme')      hook.cell.styles.textColor=[192,57,43];
+            else if(m.stKey==='Não Aplicável')hook.cell.styles.textColor=[61,90,192];
+            else if(m.stKey==='Conforme')     hook.cell.styles.textColor=[46,125,50];
+            else if(m.stKey==='Regular')      hook.cell.styles.textColor=[183,121,31];
+          }
+          if(hook.column.index===3){
+            if(m.na)            hook.cell.styles.textColor=[61,90,192];
+            else if(m.pts===100)hook.cell.styles.textColor=[46,125,50];
+            else if(m.pts===75) hook.cell.styles.textColor=[183,121,31];
+            else if(m.pts===0)  hook.cell.styles.textColor=[192,57,43];
+          }
         }
-        if(hook.section==='body'&&hook.column.index===3){
-          const p=hook.cell.raw;
-          if(p==='100')hook.cell.styles.textColor=[46,125,50];
-          else if(p==='75')hook.cell.styles.textColor=[183,121,31];
-          else if(p==='0')hook.cell.styles.textColor=[192,57,43];
-          else if(p==='N/A')hook.cell.styles.textColor=[61,90,192];
+        const s=sec[hook.row.index];
+        if(bi && s && s[hook.column.index]){
+          const larg=(hook.column.index===1?CQ:C2)-PAD*2;
+          doc.setFont('helvetica','normal');doc.setFontSize(FSA);
+          const la=doc.splitTextToSize(String(hook.cell.raw||''),larg);
+          doc.setFont('helvetica','italic');doc.setFontSize(FSB);
+          const lbn=doc.splitTextToSize(s[hook.column.index],larg);
+          hook.cell.__sec=lbn;
+          hook.cell.styles.minCellHeight=PAD*2+la.length*lhA+lbn.length*lhB+0.4;
         }
+      },
+      didDrawCell:hook=>{
+        const linhasSec=hook.cell.__sec;
+        if(!linhasSec||hook.section!=='body') return;
+        const nA=(hook.cell.text||[]).length;
+        const yy=hook.cell.y+PAD+nA*lhA+lhB*0.78;
+        doc.setFont('helvetica','italic');doc.setFontSize(FSB);doc.setTextColor(140,135,130);
+        if(hook.column.index===2) doc.text(linhasSec,hook.cell.x+hook.cell.width/2,yy,{align:'center'});
+        else                      doc.text(linhasSec,hook.cell.x+PAD,yy);
       },
       didDrawPage:()=>{footer();}
     });
     y=doc.lastAutoTable.finalY+3;
   });
 
+  // Parecer final — escrito pelo auditor, fica no idioma em que ele digitou.
   if(y>H-40){doc.addPage();y=20;}
-  doc.setFontSize(8);doc.setFont('helvetica','bold');setC(RED);doc.text('PARECER FINAL DA AUDITORIA',ML,y);y+=2;
+  doc.setFontSize(8);doc.setFont('helvetica','bold');setC(RED);doc.text(ti('apdf.final'),ML,y);y+=2;
   setD(LGRAY);doc.setLineWidth(0.3);doc.line(ML,y,ML+CW,y);y+=5;
   doc.setFontSize(9);doc.setFont('helvetica','normal');setC(DARK);
   const parecerTx=doc.splitTextToSize(d.parecer_final||'—',CW);
