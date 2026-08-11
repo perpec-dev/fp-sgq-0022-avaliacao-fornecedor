@@ -1036,9 +1036,13 @@ function carregarLinkPasta(){
 }
 function renderPastaEvid(){
   const wrap=document.getElementById('pastaEvidWrap'); if(!wrap) return;
-  wrap.innerHTML = linkPastaEvidencias
-    ? '<a class="btn btn-red" href="'+esc(linkPastaEvidencias)+'" target="_blank" rel="noopener">'+esc(t('evid.open'))+'</a>'
-    : '<div class="q-warn show">'+esc(t('evid.none'))+'</div>';
+  if(!linkPastaEvidencias){
+    wrap.innerHTML='<div class="q-warn show">'+esc(t('evid.none'))+'</div>';
+    return;
+  }
+  // Garante que o URL tenha protocolo (senão o navegador trata como relativo)
+  const url=linkPastaEvidencias.match(/^https?:\/\//) ? linkPastaEvidencias : 'https://'+linkPastaEvidencias;
+  wrap.innerHTML='<a class="btn btn-red" href="'+esc(url)+'" target="_blank" rel="noopener">'+esc(t('evid.open'))+'</a>';
 }
 
 /* ----- carga de dados externos (Planilha Google → fallback CSV local) -----
