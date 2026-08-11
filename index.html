@@ -1904,7 +1904,7 @@ async function gerarPDF(opts){
       return [l.codigo, l.texto.a, l.status.a+(l.semEvidencia?' *':''), pts, l.comentario||''];
     });
     doc.autoTable({
-      startY:y+2,margin:{left:ML,right:MR},
+      startY:y+2,margin:{left:ML,right:MR,top:22,bottom:14},
       head:[[ {content:g.bloco.a+(bi?'\n'+g.bloco.b:''),colSpan:5,styles:{halign:'left',fillColor:DARK,textColor:[212,200,196],fontSize:7.5}} ],
             [hc('pdf.col.code'),hc('pdf.col.q'),hc('pdf.col.status'),hc('pdf.col.pts'),hc('pdf.col.comment')]],
       body:body,
@@ -1961,7 +1961,11 @@ async function gerarPDF(opts){
   doc.text(T(A,'pdf.legend'),ML,y+3);
   if(bi) doc.text(T(B,'pdf.legend'),ML,y+6.2);
 
-  const tot=doc.internal.getNumberOfPages();for(let i=1;i<=tot;i++){doc.setPage(i);footer();}
+  // Cabeçalho e rodapé em TODAS as páginas — inclusive as que o autoTable
+  // criou sozinho ao estourar a página (didDrawPage só cobre o rodapé,
+  // porque o cabeçalho já tinha sido desenhado uma vez lá em cima, na
+  // página 1, e ficava faltando nas páginas seguintes).
+  const tot=doc.internal.getNumberOfPages();for(let i=1;i<=tot;i++){doc.setPage(i);header();footer();}
   const nome='Autoavaliacao-'+rastreabilidade+'.pdf';
   if(opts.download) doc.save(nome);
   if(opts.returnBlob) return doc.output('blob');
