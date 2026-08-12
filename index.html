@@ -300,13 +300,14 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
   text-align:left;transition:border-color .13s,background .13s,transform .13s}
 .lang-opt:hover{border-color:var(--red);background:var(--accent-lt);transform:translateY(-1px)}
 .lang-opt .flag{font-size:23px;line-height:1;flex-shrink:0}
+.lang-opt-default{border-color:var(--red);background:var(--accent-lt)}
 </style>
 </head>
 <body>
 
-<!-- ===== ESCOLHA DE IDIOMA (aparece antes de tudo, na 1ª visita) =====
-     Preenchido por renderLangGate(). Fica oculto se o idioma já veio
-     do link (?lang=xx) ou de uma visita anterior (localStorage).      -->
+<!-- ===== ESCOLHA DE IDIOMA (aparece antes de tudo, sempre) =====
+     Preenchido por renderLangGate(). Só fica oculto se o idioma já
+     veio pronto no link enviado pelo comprador (?lang=xx).           -->
 <div class="lang-gate" id="langGate" hidden>
   <div class="lang-card">
     <div class="top">
@@ -778,7 +779,6 @@ let dataHoraPreenchimento = "";     // formato pt-BR — é o que vai no payload
 let dataHoraDisplay = "";           // formato do idioma escolhido — tela e PDF do fornecedor
 let linkPastaEvidencias = "";
 let paisSel = "";                   // código ISO alpha-2 do país (só na tela; entra no endereço do payload)
-const LANG_KEY = 'perpec_lang';     // chave do idioma salvo no navegador
 // A visibilidade dos blocos é decidida SOMENTE por b.grupo (SGQ / PRODUCAO_GERAL / ESCOPO)
 // e pelo mapeamento escopo→blocos da aba "Escopo". Nunca fixar id de bloco no código:
 // a numeração da planilha muda (ex.: bloco 5 já foi "Produção Geral" e hoje é "Tintas").
@@ -810,10 +810,11 @@ function tf(campo){ return tField(campo, APP_LANG); }
    IDIOMA
    Ordem de decisão:
      1. ?lang=xx no link (o comprador pode já mandar no idioma certo);
-     2. escolha salva de uma visita anterior;
-     3. inglês + tela de escolha.
-   O padrão é SEMPRE o inglês — o idioma do navegador não é usado, para
-   que o formulário abra igual para todo mundo no mundo inteiro.
+     2. tela de escolha — SEMPRE aparece, em toda abertura/atualização
+        da página, para não presumir o idioma de quem está respondendo.
+   Enquanto a escolha não é feita, o formulário por trás fica no inglês
+   (LANG_DEFAULT) — o idioma do navegador não é usado, para que o
+   formulário abra igual para todo mundo no mundo inteiro.
    ================================================================ */
 function idiomaInicial(){
   try{
@@ -821,18 +822,13 @@ function idiomaInicial(){
     const url=(qp.get('lang')||'').trim().toLowerCase();
     if(isLangValid(url)) return {lang:url, perguntar:false};
   }catch(e){}
-  try{
-    const salvo=localStorage.getItem(LANG_KEY);
-    if(isLangValid(salvo)) return {lang:salvo, perguntar:false};
-  }catch(e){}
   return {lang:LANG_DEFAULT, perguntar:true};
 }
 
 /* Aplica um idioma à página inteira e redesenha tudo que é dinâmico. */
-function setLang(lang, salvar){
+function setLang(lang){
   if(!isLangValid(lang)) lang=LANG_DEFAULT;
   APP_LANG=lang;
-  if(salvar!==false){ try{ localStorage.setItem(LANG_KEY,lang); }catch(e){} }
   document.documentElement.lang=(LOCALE[lang]||'en-US');
   document.title=t('ui.title');
   aplicarI18n();
@@ -863,14 +859,17 @@ function renderLangGate(){
   const gate=document.getElementById('langGate');
   document.getElementById('langGateTitle').textContent=T(LANG_DEFAULT,'lang.title');
   document.getElementById('langGateSub').textContent=T(LANG_DEFAULT,'lang.sub');
-  document.getElementById('langGateGrid').innerHTML=LANGS.map(l=>
-    '<button type="button" class="lang-opt" onclick="escolherIdioma(\''+l.code+'\')">'
+  // Português vem em destaque e em 1º lugar na grade — a Perpec é uma
+  // empresa brasileira — mas o texto do popup permanece sempre em inglês.
+  const ordenado=[...LANGS].sort((a,b)=>(a.code==='pt'?-1:b.code==='pt'?1:0));
+  document.getElementById('langGateGrid').innerHTML=ordenado.map(l=>
+    '<button type="button" class="lang-opt'+(l.code==='pt'?' lang-opt-default':'')+'" onclick="escolherIdioma(\''+l.code+'\')">'
     +'<span class="flag">'+l.flag+'</span><span>'+esc(l.nome)+'</span></button>').join('');
   gate.hidden=false;
 }
 function escolherIdioma(code){
   document.getElementById('langGate').hidden=true;
-  setLang(code,true);
+  setLang(code);
   if(pdfLangOf(code)!==code) showToast(t('toast.pdfEn'));
 }
 
@@ -894,7 +893,7 @@ function trocarIdioma(code){
   document.getElementById('langMenu').classList.remove('open');
   document.getElementById('langBtn').setAttribute('aria-expanded','false');
   if(code===APP_LANG) return;
-  setLang(code,true);
+  setLang(code);
   if(pdfLangOf(code)!==code) showToast(t('toast.pdfEn'));
 }
 document.addEventListener('click',()=>{
