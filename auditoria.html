@@ -26,6 +26,11 @@
     DOC_REF: "FP-SGQ-0022 RevForm.00"
   };
 
+  // País cujo campo fiscal usa as regras brasileiras (máscara de CNPJ).
+  // Qualquer outro país usa identificação fiscal livre (Tax ID/VAT/nº de
+  // registro) — mesmo critério do index.html, ver aplicarPais().
+  const PAIS_LOCAL = "BR";
+
   // ---- Parâmetros de pontuação (idênticos ao formulário do fornecedor) ----
   const SCORING = {
     CONFORME: 100,
@@ -272,8 +277,14 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
           <div class="field"><label>Data da Auditoria</label><input type="text" id="dataHoraField" readonly></div>
         </div>
         <div class="g2" style="margin-bottom:13px">
-          <div class="field"><label>Razão Social do Fornecedor <span class="req">*</span></label><input type="text" id="razaoSocial" placeholder="Razão social completa"></div>
-          <div class="field"><label>CNPJ</label><input type="text" id="cnpj" placeholder="00.000.000/0000-00" oninput="maskCNPJ(this)" maxlength="18"></div>
+          <div class="field full"><label>Razão Social do Fornecedor <span class="req">*</span></label><input type="text" id="razaoSocial" placeholder="Razão social completa"></div>
+        </div>
+        <!-- País define o rótulo/máscara do campo fiscal abaixo: no Brasil vira
+             CNPJ com máscara; em qualquer outro país fica identificação livre
+             (Tax ID / VAT / nº de registro da empresa) — ver aplicarPais(). -->
+        <div class="g2" style="margin-bottom:13px">
+          <div class="field"><label>País do Fornecedor <span class="req">*</span></label><select id="pais" onchange="aplicarPais()"></select></div>
+          <div class="field"><label id="lblTaxId">CNPJ</label><input type="text" id="cnpj" placeholder="00.000.000/0000-00" maxlength="18"></div>
         </div>
         <div class="g2" style="margin-bottom:13px">
           <div class="field"><label>Auditor Responsável (Perpec) <span class="req">*</span></label><input type="text" id="auditorNome" placeholder="Nome completo"></div>
@@ -601,6 +612,7 @@ let rastreabilidade = "";
 let escoposBloqueadosURL = false;
 let sgqAutoFilled = false;
 let dataHoraPreenchimento = "";
+let paisSel = "";                   // país do fornecedor auditado (código ISO alpha-2)
 // A visibilidade dos blocos é decidida SOMENTE por b.grupo (SGQ / PRODUCAO_GERAL / ESCOPO)
 // e pelo mapeamento escopo→blocos da aba "Escopo". Nunca fixar id de bloco no código:
 // a numeração da planilha muda (ex.: bloco 5 já foi "Produção Geral" e hoje é "Tintas").
@@ -620,6 +632,33 @@ function maskCNPJ(el){let v=el.value.replace(/\D/g,'').slice(0,14);
      .replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d)/,'$1-$2');el.value=v;}
 
 /* ================================================================
+   PAÍS — mesma lógica do index.html: define se o campo fiscal segue as
+   regras brasileiras (CNPJ com máscara) ou fica livre (fornecedor global).
+   ================================================================ */
+function paisEhLocal(){ return !paisSel || paisSel===PAIS_LOCAL; }
+function renderCountrySelect(){
+  const sel=document.getElementById('pais'); if(!sel) return;
+  const atual=paisSel;
+  const lista=countryList('pt');    // painel interno sempre em português
+  sel.innerHTML='<option value="">Selecione o país…</option>'
+    + lista.map(c=>'<option value="'+c.code+'">'+esc(c.name)+'</option>').join('');
+  sel.value=atual||'';
+}
+function aplicarPais(){
+  const sel=document.getElementById('pais');
+  if(sel) paisSel=sel.value||'';
+  const br=paisEhLocal();
+  const lbl=document.getElementById('lblTaxId');
+  if(lbl) lbl.textContent = br ? 'CNPJ' : 'Tax ID / VAT / Nº de Registro da Empresa';
+  const cnpj=document.getElementById('cnpj');
+  if(cnpj){
+    cnpj.placeholder = br ? '00.000.000/0000-00' : 'Identificação fiscal da empresa';
+    cnpj.oninput = br ? function(){maskCNPJ(this);} : null;
+    if(br) cnpj.setAttribute('maxlength','18'); else cnpj.removeAttribute('maxlength');
+  }
+}
+
+/* ================================================================
    INICIALIZAÇÃO
    ================================================================ */
 window.onload = async () => {
@@ -627,6 +666,7 @@ window.onload = async () => {
   renderPdfLangSelect();
   carregarRastreabilidade();
   definirDataHora();
+  renderCountrySelect(); aplicarPais();
   await carregarEscoposExternos();
   await carregarPerguntasExternas();
   BANCO_PERGUNTAS.forEach(b=>blocosMap[b.id]=b);
@@ -1039,6 +1079,7 @@ function validar(){
   const erros=[];
   if(!val('rastreabilidadeField')) erros.push('Rastreabilidade');
   if(!val('razaoSocial')) erros.push('Razão Social do Fornecedor');
+  if(!val('pais')) erros.push('País do Fornecedor');
   if(!val('auditorNome')) erros.push('Auditor Responsável');
   if(!val('auditorCargo')) erros.push('Cargo / Função do Auditor');
   if(!document.querySelector('input[name="certConfirmado"]:checked')) erros.push('Confirmação da certificação de SGQ (Sim/Não)');
@@ -1071,7 +1112,7 @@ function coletar(){
     rastreabilidade: rastreabilidade,
     documento_ref:CONFIG.DOC_REF,
     data_auditoria:dataHoraPreenchimento,
-    fornecedor:{ razao_social:val('razaoSocial'), cnpj:val('cnpj') },
+    fornecedor:{ razao_social:val('razaoSocial'), cnpj:val('cnpj'), pais:paisSel },
     auditor:{ nome:val('auditorNome'), cargo:val('auditorCargo') },
     link_pasta_evidencias:val('linkPastaAud'),
     certificacao_sgq_confirmada:cert?cert.value:'',
@@ -1196,10 +1237,14 @@ function gerarPDF(){
     const e=ESCOPOS.find(x=>x.nome===n), src=e?(e.nome_i18n||e.nome):n;
     return bi ? (tField(src,A)+' / '+tField(src,B)) : tField(src,A);
   }).join('; ');
+  const paisTxt = d.fornecedor.pais
+    ? (bi ? (countryName(d.fornecedor.pais,A)+' / '+countryName(d.fornecedor.pais,B)) : countryName(d.fornecedor.pais,A))
+    : '—';
   bloco(ti('apdf.ident'),[
     [lb('apdf.trace'),     d.rastreabilidade||'—'],
     [lb('pdf.legalName'),  d.fornecedor.razao_social],
-    [lb('pdf.taxid'),      d.fornecedor.cnpj],
+    [lb('pdf.country'),    paisTxt],
+    [lb('pdf.taxid'),      d.fornecedor.cnpj||'—'],
     [lb('apdf.auditor'),   d.auditor.nome+'  ('+d.auditor.cargo+')'],
     [lb('apdf.date'),      d.data_auditoria],
     [lb('apdf.folder'),    d.link_pasta_evidencias||'—'],
@@ -1316,6 +1361,7 @@ function limpar(){
   document.querySelectorAll('#conteudo input[type="text"]:not([readonly])').forEach(el=>el.value='');
   document.getElementById('parecerFinal').value='';
   document.querySelectorAll('input[name="certConfirmado"]').forEach(el=>el.checked=false);
+  paisSel=''; const ps=document.getElementById('pais'); if(ps) ps.value=''; aplicarPais();
   carregarRastreabilidade(); definirDataHora();
   renderEscopos(); renderPerguntas(); atualizar();
   showToast('Formulário de auditoria limpo.');
