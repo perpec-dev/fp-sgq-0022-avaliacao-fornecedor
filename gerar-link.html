@@ -41,7 +41,18 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
 .escopo-chip .esc-tag{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:20px;margin-left:auto}
 .esc-tag.produto{background:#EEF2FF;color:#3D5AC0}
 .esc-tag.servico{background:#F1ECE6;color:#8A6D3B}
+.escopo-chip .esc-qtd{font-size:11px;color:var(--muted);white-space:nowrap}
+.escopo-chip.vazio{opacity:.55;cursor:not-allowed;border-style:dashed}
+.escopo-chip.vazio input{cursor:not-allowed}
 .escopo-loading{font-size:13px;color:var(--muted);font-style:italic;padding:4px 0}
+.sync-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:4px}
+.sync-bar .warn{color:#B7791F;font-weight:600}
+.btn-link{background:none;border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-size:11.5px;color:var(--text);cursor:pointer;font-family:inherit}
+.btn-link:hover{border-color:var(--red);color:var(--red)}
+.aviso{font-size:12px;color:#8A5A00;background:#FEF7E6;border:1px solid #F0D98A;border-radius:var(--radius);padding:8px 11px;margin-top:10px;line-height:1.5}
+.preview{font-size:12.5px;line-height:1.55;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-top:12px}
+.preview strong{color:var(--dark)}
+.preview ul{margin:4px 0 0 18px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border:none;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;transition:all .13s;font-family:inherit}
 .btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
 .btn-red{background:var(--red);color:#fff}.btn-red:hover{background:var(--red2)}
@@ -87,8 +98,13 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
       </div>
       <div class="field" style="margin-bottom:18px">
         <label>Escopo(s) do Fornecedor <span class="req">*</span></label>
-        <div class="escopo-loading" id="escopoLoading">Carregando escopos da planilha…</div>
+        <div class="sync-bar">
+          <span id="syncInfo">Carregando escopos da planilha…</span>
+          <button type="button" class="btn-link" onclick="carregarEscoposGerador(true)">↻ Atualizar agora</button>
+        </div>
         <div class="escopo-grid" id="escopoGridGerador"></div>
+        <div id="avisos"></div>
+        <div class="preview" id="preview" hidden></div>
       </div>
       <button class="btn btn-red" onclick="gerar()">Gerar Link do Formulário</button>
 
@@ -106,78 +122,108 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(
   </div>
 </main>
 
+<script src="dados.js"></script>
 <script>
-const SHEET_ID          = '1soNX-LdvAit09ja38D3eEFXTEk82oyt_XrhlzJMl05c';
-const SHEET_ESCOPOS_ABA = 'Escopo';
+/* Escopos e perguntas vêm de dados.js (mesma fonte do formulário).
+   A lista se atualiza sozinha: a cada minuto e sempre que esta aba
+   volta a ficar visível — nova categoria na planilha aparece aqui sem
+   recarregar a página. */
+const AUTO_REFRESH_MS = 60000;
 
-let escoposGerador = [];   // lista de {nome, tipo} carregada da planilha
+let baseGerador    = {blocos:[], escopos:[], origem:''};
 let selGerador     = [];   // nomes selecionados pelo operador
+let carregando     = false;
 
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-/* Parser CSV robusto — idêntico ao de index.html (RFC 4180) */
-function parseCSV(text){
-  text=String(text||'').replace(/^﻿/,'');
-  const head=(text.split('\n')[0]||'');
-  const sep=((head.split(';').length-1)>(head.split(',').length-1))?';':',';
-  const rows=[]; let row=[],val='',q=false;
-  for(let i=0;i<text.length;i++){
-    const ch=text[i];
-    if(q){
-      if(ch==='"'){if(text[i+1]==='"'){val+='"';i++;}else q=false;}
-      else val+=ch;
-    }else{
-      if(ch==='"') q=true;
-      else if(ch===sep){row.push(val);val='';}
-      else if(ch==='\n'){row.push(val);rows.push(row);row=[];val='';}
-      else if(ch==='\r'){/* ignora */}
-      else val+=ch;
-    }
-  }
-  if(val!==''||row.length){row.push(val);rows.push(row);}
-  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
-}
+window.onload = async () => {
+  await carregarEscoposGerador(true);
+  setInterval(()=>{ if(!document.hidden) carregarEscoposGerador(false); }, AUTO_REFRESH_MS);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) carregarEscoposGerador(false); });
+};
 
-window.onload = async () => { await carregarEscoposGerador(); };
-
-async function carregarEscoposGerador(){
-  const loading = document.getElementById('escopoLoading');
-  const url = 'https://docs.google.com/spreadsheets/d/'+SHEET_ID
-            + '/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(SHEET_ESCOPOS_ABA)
-            + '&_='+Date.now();
+/* manual=true mostra "carregando"; a atualização automática é silenciosa
+   e, se falhar, mantém a última lista boa na tela. */
+async function carregarEscoposGerador(manual){
+  if(carregando) return;
+  carregando = true;
+  const info = document.getElementById('syncInfo');
+  if(manual) info.textContent = 'Carregando escopos da planilha…';
   try{
-    const r = await fetch(url, {cache:'no-store'});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const rows = parseCSV(await r.text());
-    escoposGerador = [];
-    rows.forEach((c,i)=>{
-      if(i===0 && /nome/i.test(c[0]||'')) return;
-      const nome=(c[0]||'').trim(); if(!nome) return;
-      escoposGerador.push({nome, tipo:((c[1]||'').trim().toLowerCase()==='servico'?'servico':'produto')});
-    });
-    loading.style.display = 'none';
+    const base = await carregarBaseDados();
+    if(base.origem==='erro' && baseGerador.escopos.length){
+      info.innerHTML = '<span class="warn">Falha ao atualizar — exibindo a última lista carregada.</span>';
+      return;
+    }
+    const antes = baseGerador.escopos.map(e=>e.nome);
+    baseGerador = base;
+    const nomes = base.escopos.map(e=>e.nome);
+    selGerador = selGerador.filter(n=>nomes.includes(n));      // descarta escopo removido da planilha
+    const novos = antes.length ? nomes.filter(n=>!antes.includes(n)) : [];
     renderEscoposGerador();
-  }catch(e){
-    loading.textContent = 'Não foi possível carregar os escopos da planilha. Verifique a conexão.';
+    renderAvisos();
+    renderPreview();
+    const hora = new Date().toLocaleTimeString('pt-BR');
+    if(base.origem==='planilha'){
+      info.textContent = base.escopos.length+' escopos · atualizado às '+hora+' (atualiza sozinho a cada minuto)'
+        + (novos.length ? ' · novo: '+novos.join(', ') : '');
+    }else if(base.origem==='backup'){
+      info.innerHTML = '<span class="warn">Planilha Google inacessível — usando a cópia local (perguntas.csv / escopo.csv) · '+hora+'</span>';
+    }else{
+      info.innerHTML = '<span class="warn">Não foi possível carregar os escopos. Verifique a conexão e o compartilhamento da planilha.</span>';
+    }
+  }finally{
+    carregando = false;
   }
 }
 
 function renderEscoposGerador(){
   const grid = document.getElementById('escopoGridGerador');
-  grid.innerHTML = escoposGerador.map((e,i)=>{
+  grid.innerHTML = baseGerador.escopos.map((e,i)=>{
     const sel = selGerador.includes(e.nome);
-    return '<label class="escopo-chip'+(sel?' sel':'')+'" id="gchip_'+i+'">'
-      +'<input type="checkbox" '+(sel?'checked':'')+' onchange="toggleGeradorEscopo('+i+',this.checked)">'
+    const qtd = e.semPerguntas ? 'sem perguntas' : e.qtdPerguntas+' perg.';
+    return '<label class="escopo-chip'+(sel?' sel':'')+(e.semPerguntas?' vazio':'')+'" id="gchip_'+i+'"'
+      +(e.semPerguntas?' title="Nenhuma pergunta cadastrada na aba Perguntas para este escopo"':'')+'>'
+      +'<input type="checkbox" '+(sel?'checked':'')+(e.semPerguntas?' disabled':'')
+      +' onchange="toggleGeradorEscopo('+i+',this.checked)">'
       +'<span class="esc-name">'+esc(e.nome)+'</span>'
+      +'<span class="esc-qtd">'+qtd+'</span>'
       +'<span class="esc-tag '+e.tipo+'">'+(e.tipo==='produto'?'Produto':'Serviço')+'</span></label>';
   }).join('');
 }
 
+/* Avisos de cadastro para quem mantém a planilha. */
+function renderAvisos(){
+  const av = [];
+  baseGerador.escopos.forEach(e=>{
+    if(e.blocosInexistentes && e.blocosInexistentes.length)
+      av.push('Escopo <strong>'+esc(e.nome)+'</strong> aponta para bloco(s) '+esc(e.blocosInexistentes.join(', '))
+        +' que não existem na aba Perguntas.');
+    else if(e.semPerguntas)
+      av.push('Escopo <strong>'+esc(e.nome)+'</strong> não tem perguntas: preencha a coluna "blocos" na aba Escopo'
+        +' (ou use o mesmo nome da categoria na aba Perguntas).');
+  });
+  document.getElementById('avisos').innerHTML = av.length ? '<div class="aviso">⚠ '+av.join('<br>⚠ ')+'</div>' : '';
+}
+
+/* Mostra exatamente quais blocos o fornecedor vai receber. */
+function renderPreview(){
+  const box = document.getElementById('preview');
+  if(!selGerador.length){ box.hidden = true; return; }
+  const blocos = blocosDosEscopos(selGerador, baseGerador.escopos, baseGerador.blocos);
+  const total = blocos.reduce((n,b)=>n+b.perguntas.length,0);
+  box.innerHTML = '<strong>O questionário terá '+total+' perguntas:</strong><ul>'
+    + blocos.map(b=>'<li>'+esc(b.id+' — '+b.categoria)+' ('+b.perguntas.length+')</li>').join('')
+    + '</ul>';
+  box.hidden = false;
+}
+
 function toggleGeradorEscopo(i, checked){
-  const nome = escoposGerador[i].nome;
+  const nome = baseGerador.escopos[i].nome;
   if(checked){ if(!selGerador.includes(nome)) selGerador.push(nome); }
   else{ selGerador = selGerador.filter(x=>x!==nome); }
   document.getElementById('gchip_'+i).classList.toggle('sel', checked);
+  renderPreview();
 }
 
 function basePath(){

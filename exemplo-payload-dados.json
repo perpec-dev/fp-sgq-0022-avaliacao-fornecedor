@@ -1,0 +1,95 @@
+{
+  "protocolo": "RQF-123-26",
+  "documento_ref": "FP-SGQ-0015 RevForm.00",
+  "data_hora": "18/06/2026, 10:35:19",
+  "link_pasta_evidencias": "https://monday.com/files/exemplo-pasta-fornecedor",
+  "fornecedor": {
+    "razao_social": "Indústria Metal Sul Ltda",
+    "nome_fantasia": "Metal Sul",
+    "cnpj": "12.345.678/0001-90",
+    "cnae": "",
+    "endereco": "Rua das Indústrias, 100, Distrito Industrial",
+    "cidade": "Caxias do Sul",
+    "estado": "RS",
+    "responsavel": "Maria Oliveira",
+    "cargo": "Gerente de Qualidade",
+    "email": "maria.oliveira@metalsul.com.br",
+    "telefone": "(54) 99999-0000"
+  },
+  "certificacao_sgq": {
+    "possui": "Sim"
+  },
+  "escopos": [
+    "Soldagem",
+    "Usinagem"
+  ],
+  "resultados": {
+    "nota_sgq": 88.8,
+    "nota_tecnica": 59.6,
+    "nota_final": 80,
+    "classificacao": "Aprovado",
+    "aprovacao_garantida_por_certificacao_sgq": true
+  },
+  "respostas": [
+    {
+      "bloco": "1 - Gestão da Qualidade — Organização do Fornecedor",
+      "bloco_nota": "SGQ",
+      "codigo": "1.1",
+      "texto": "Existe Manual da Qualidade?",
+      "status_informado": "Conforme",
+      "status_efetivo": "Conforme",
+      "pontuacao": 100,
+      "sem_evidencia_comentada": false,
+      "tem_comentario": true,
+      "comentario": "Manual disponível na pasta de evidências, item 1.1."
+    },
+    {
+      "bloco": "1 - Gestão da Qualidade — Organização do Fornecedor",
+      "bloco_nota": "SGQ",
+      "codigo": "1.2",
+      "texto": "Existe Política e Objetivos da Qualidade?",
+      "status_informado": "Conforme",
+      "status_efetivo": "Conforme",
+      "pontuacao": 100,
+      "sem_evidencia_comentada": true,
+      "tem_comentario": false,
+      "comentario": ""
+    },
+    {
+      "bloco": "6 - Produção — Soldagem",
+      "bloco_nota": "TECNICA",
+      "codigo": "6.1",
+      "texto": "Existência de Procedimentos de Soldagem qualificados?",
+      "status_informado": "Não Aplicável",
+      "status_efetivo": "Não Aplicável",
+      "pontuacao": null,
+      "sem_evidencia_comentada": false,
+      "tem_comentario": true,
+      "comentario": "Não se aplica a este fornecimento — apenas usinagem nesta etapa."
+    },
+    {
+      "bloco": "8 - Produção — Usinagem",
+      "bloco_nota": "TECNICA",
+      "codigo": "8.1",
+      "texto": "Existência de tornos com capacidade para atender a demanda de fabricação?",
+      "status_informado": "Regular",
+      "status_efetivo": "Regular",
+      "pontuacao": 75,
+      "sem_evidencia_comentada": false,
+      "tem_comentario": true,
+      "comentario": "Possui tornos, mas sem registro formal de capacidade produtiva."
+    },
+    {
+      "bloco": "8 - Produção — Usinagem",
+      "bloco_nota": "TECNICA",
+      "codigo": "8.2",
+      "texto": "Existe layout produtivo definido e fluxo adequado de fabricação, inspeção e expedição?",
+      "status_informado": "Não Conforme",
+      "status_efetivo": "Não Conforme",
+      "pontuacao": 0,
+      "sem_evidencia_comentada": false,
+      "tem_comentario": true,
+      "comentario": "Não possui layout formalizado."
+    }
+  ]
+}

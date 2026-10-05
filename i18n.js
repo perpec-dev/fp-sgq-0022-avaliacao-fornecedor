@@ -143,6 +143,7 @@ I18N.en = {
   'q.banner.autofill': '✓ Section filled in automatically as <strong>Compliant</strong> based on the QMS certificate you reported. Adjust individual items if needed.',
   'q.sub.prodgeral' : 'Loaded automatically for suppliers of products / manufacturing processes.',
   'q.empty'         : 'Select at least one scope above to load the questionnaire. The QMS questions will appear automatically.',
+  'q.loadError'     : 'The questionnaire could not be loaded. Check your internet connection and reload the page. If the problem persists, contact your Perpec buyer.',
 
   'st.Conforme'     : 'Compliant',
   'st.Regular'      : 'Partial',
@@ -331,6 +332,7 @@ I18N.pt = {
   'q.banner.autofill': '✓ Seção preenchida automaticamente como <strong>Conforme</strong> com base no certificado de SGQ informado. Ajuste itens individuais se necessário.',
   'q.sub.prodgeral' : 'Carregado automaticamente para fornecedores de produtos/processos produtivos.',
   'q.empty'         : 'Selecione ao menos um escopo acima para carregar o questionário. As perguntas de SGQ aparecerão automaticamente.',
+  'q.loadError'     : 'Não foi possível carregar o questionário. Verifique sua conexão com a internet e recarregue a página. Se o problema continuar, contate o comprador Perpec.',
 
   'st.Conforme'     : 'Conforme',
   'st.Regular'      : 'Regular',
@@ -517,6 +519,7 @@ I18N.es = {
   'q.banner.autofill': '✓ Sección completada automáticamente como <strong>Conforme</strong> con base en el certificado del SGC informado. Ajuste ítems individuales si es necesario.',
   'q.sub.prodgeral' : 'Cargado automáticamente para proveedores de productos/procesos productivos.',
   'q.empty'         : 'Seleccione al menos un alcance arriba para cargar el cuestionario. Las preguntas del SGC aparecerán automáticamente.',
+  'q.loadError'     : 'No fue posible cargar el cuestionario. Verifique su conexión a internet y recargue la página. Si el problema persiste, contacte a su comprador de Perpec.',
 
   'st.Conforme'     : 'Conforme',
   'st.Regular'      : 'Parcial',
@@ -705,6 +708,7 @@ I18N.zh = {
   'q.banner.autofill': '✓ 根据您填报的质量管理体系证书，本节已自动标记为<strong>符合</strong>。如有需要可逐项调整。',
   'q.sub.prodgeral' : '为产品/生产过程类供应商自动加载。',
   'q.empty'         : '请在上方至少选择一个供货范围以加载问卷。质量管理体系相关问题将自动显示。',
+  'q.loadError'     : '无法加载问卷。请检查网络连接并刷新页面。如问题仍然存在，请联系 Perpec 采购员。',
 
   'st.Conforme'     : '符合',
   'st.Regular'      : '部分符合',
@@ -879,6 +883,7 @@ I18N.fr = {
   'q.banner.autofill': '✓ Section remplie automatiquement comme <strong>Conforme</strong> sur la base du certificat SMQ déclaré. Ajustez les points individuels si nécessaire.',
   'q.sub.prodgeral' : 'Chargé automatiquement pour les fournisseurs de produits / procédés de fabrication.',
   'q.empty'         : 'Sélectionnez au moins un périmètre ci-dessus pour charger le questionnaire. Les questions SMQ apparaîtront automatiquement.',
+  'q.loadError'     : 'Impossible de charger le questionnaire. Vérifiez votre connexion internet et rechargez la page. Si le problème persiste, contactez votre acheteur Perpec.',
 
   'st.Conforme'     : 'Conforme',
   'st.Regular'      : 'Partiel',
@@ -1065,6 +1070,7 @@ I18N.it = {
   'q.banner.autofill': '✓ Sezione compilata automaticamente come <strong>Conforme</strong> in base al certificato SGQ dichiarato. Modifica le singole voci se necessario.',
   'q.sub.prodgeral' : 'Caricato automaticamente per fornitori di prodotti / processi produttivi.',
   'q.empty'         : 'Seleziona almeno un ambito qui sopra per caricare il questionario. Le domande SGQ compariranno automaticamente.',
+  'q.loadError'     : 'Impossibile caricare il questionario. Verifica la connessione internet e ricarica la pagina. Se il problema persiste, contatta il buyer Perpec.',
 
   'st.Conforme'     : 'Conforme',
   'st.Regular'      : 'Parziale',
@@ -1251,6 +1257,7 @@ I18N.de = {
   'q.banner.autofill': '✓ Abschnitt auf Basis des angegebenen QMS-Zertifikats automatisch als <strong>Konform</strong> ausgefüllt. Einzelne Positionen bei Bedarf anpassen.',
   'q.sub.prodgeral' : 'Wird automatisch für Lieferanten von Produkten / Fertigungsprozessen geladen.',
   'q.empty'         : 'Wählen Sie oben mindestens einen Umfang aus, um den Fragebogen zu laden. Die QMS-Fragen erscheinen automatisch.',
+  'q.loadError'     : 'Der Fragebogen konnte nicht geladen werden. Prüfen Sie Ihre Internetverbindung und laden Sie die Seite neu. Besteht das Problem weiterhin, wenden Sie sich an Ihren Perpec-Einkäufer.',
 
   'st.Conforme'     : 'Konform',
   'st.Regular'      : 'Teilweise',
